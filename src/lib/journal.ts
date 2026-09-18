@@ -1,11 +1,6 @@
 const PROFILES_KEY = 'escent.profiles'
 const JOURNALS_KEY = 'escent.journals'
 
-export type FontChoice = 'sans' | 'serif' | 'mono' | 'cursive'
-export type SizeChoice = 'sm' | 'md' | 'lg' | 'xl'
-export type AlignChoice = 'left' | 'center' | 'right'
-export type WeightChoice = 'normal' | 'medium' | 'bold'
-
 export type UserProfile = {
   username: string
   displayName: string
@@ -18,19 +13,17 @@ export type Subject = {
   color: string
 }
 
+export type PostSection = {
+  id: string
+  question: string
+  answer: string
+}
+
 export type JournalPost = {
   id: string
   subjectId: string
   title: string
-  body: string
-  backgroundColor: string
-  textColor: string
-  accentColor: string
-  font: FontChoice
-  size: SizeChoice
-  align: AlignChoice
-  weight: WeightChoice
-  italic: boolean
+  sections: PostSection[]
   imageDataUrl: string | null
   createdAt: string
 }
@@ -40,20 +33,13 @@ export type Journal = {
   posts: JournalPost[]
 }
 
-export const SUBJECT_COLORS = ['#ec4899', '#db2777', '#f472b6', '#fb7185', '#c084fc', '#f43f5e', '#e11d48', '#9d174d']
-
-export const DEFAULT_POST_STYLE = {
-  backgroundColor: '#ffffff',
-  textColor: '#4a1233',
-  accentColor: '#ec4899',
-  font: 'sans' as FontChoice,
-  size: 'md' as SizeChoice,
-  align: 'left' as AlignChoice,
-  weight: 'normal' as WeightChoice,
-  italic: false,
+type StoredPost = Partial<JournalPost> & {
+  body?: string
 }
 
-function createId(): string {
+export const SUBJECT_COLORS = ['#ec4899', '#db2777', '#f472b6', '#fb7185', '#c084fc', '#f43f5e', '#e11d48', '#9d174d']
+
+export function createEntryId(): string {
   return crypto.randomUUID()
 }
 
@@ -103,8 +89,33 @@ export function saveProfile(profile: UserProfile): UserProfile {
   return profile
 }
 
+function normalizePost(post: StoredPost): JournalPost {
+  const sections = Array.isArray(post.sections)
+    ? post.sections.map((section) => ({
+        id: section.id || createEntryId(),
+        question: section.question ?? '',
+        answer: section.answer ?? '',
+      }))
+    : post.body?.trim()
+      ? [{ id: createEntryId(), question: 'Notes', answer: post.body }]
+      : []
+
+  return {
+    id: post.id || createEntryId(),
+    subjectId: post.subjectId ?? '',
+    title: post.title ?? '',
+    sections,
+    imageDataUrl: post.imageDataUrl ?? null,
+    createdAt: post.createdAt ?? new Date().toISOString(),
+  }
+}
+
 export function getJournal(username: string): Journal {
-  return readJournals()[username] ?? { subjects: [], posts: [] }
+  const stored = readJournals()[username] ?? { subjects: [], posts: [] }
+  return {
+    subjects: stored.subjects ?? [],
+    posts: (stored.posts as StoredPost[]).map(normalizePost),
+  }
 }
 
 function saveJournal(username: string, journal: Journal): Journal {
@@ -126,7 +137,7 @@ export function addSubject(username: string, name: string, color: string): Journ
     throw new Error('You already have that subject.')
   }
 
-  journal.subjects.push({ id: createId(), name: trimmed, color })
+  journal.subjects.push({ id: createEntryId(), name: trimmed, color })
   return saveJournal(username, journal)
 }
 
@@ -144,13 +155,22 @@ export function addPost(username: string, post: Omit<JournalPost, 'id' | 'create
     throw new Error('Pick a subject first.')
   }
 
-  if (!post.title.trim() && !post.body.trim() && !post.imageDataUrl) {
-    throw new Error('Write something, or add a photo.')
+  const sections = post.sections
+    .map((section) => ({
+      ...section,
+      question: section.question.trim(),
+      answer: section.answer.trim(),
+    }))
+    .filter((section) => section.question || section.answer)
+
+  if (!post.title.trim() && sections.length === 0 && !post.imageDataUrl) {
+    throw new Error('Add a title or at least one question and answer.')
   }
 
   journal.posts.unshift({
     ...post,
-    id: createId(),
+    sections,
+    id: createEntryId(),
     createdAt: new Date().toISOString(),
   })
   return saveJournal(username, journal)

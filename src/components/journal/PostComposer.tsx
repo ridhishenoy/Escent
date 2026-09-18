@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { AlignCenter, AlignLeft, AlignRight, ImagePlus } from 'lucide-react'
+import { ImagePlus, Plus, Trash2 } from 'lucide-react'
 import {
-  DEFAULT_POST_STYLE,
+  createEntryId,
   fileToCompressedDataUrl,
-  type AlignChoice,
-  type FontChoice,
   type JournalPost,
-  type SizeChoice,
+  type PostSection,
   type Subject,
-  type WeightChoice,
 } from '../../lib/journal'
 import PostCard from './PostCard'
 
@@ -21,19 +18,15 @@ type PostComposerProps = {
 const inputClass =
   'mt-1 w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 outline-none focus:border-[var(--color-primary)]'
 
+function emptySection(): PostSection {
+  return { id: createEntryId(), question: '', answer: '' }
+}
+
 export default function PostComposer({ subjects, defaultSubjectId, onPublish }: PostComposerProps) {
   const imageRef = useRef<HTMLInputElement>(null)
   const [subjectId, setSubjectId] = useState(defaultSubjectId ?? subjects[0]?.id ?? '')
   const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [backgroundColor, setBackgroundColor] = useState(DEFAULT_POST_STYLE.backgroundColor)
-  const [textColor, setTextColor] = useState(DEFAULT_POST_STYLE.textColor)
-  const [accentColor, setAccentColor] = useState(DEFAULT_POST_STYLE.accentColor)
-  const [font, setFont] = useState<FontChoice>(DEFAULT_POST_STYLE.font)
-  const [size, setSize] = useState<SizeChoice>(DEFAULT_POST_STYLE.size)
-  const [align, setAlign] = useState<AlignChoice>(DEFAULT_POST_STYLE.align)
-  const [weight, setWeight] = useState<WeightChoice>(DEFAULT_POST_STYLE.weight)
-  const [italic, setItalic] = useState(DEFAULT_POST_STYLE.italic)
+  const [sections, setSections] = useState<PostSection[]>([emptySection()])
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
 
@@ -55,17 +48,17 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
     id: 'preview',
     subjectId: activeSubjectId,
     title,
-    body,
-    backgroundColor,
-    textColor,
-    accentColor,
-    font,
-    size,
-    align,
-    weight,
-    italic,
+    sections,
     imageDataUrl,
     createdAt: new Date().toISOString(),
+  }
+
+  function updateSection(id: string, patch: Partial<PostSection>) {
+    setSections((current) => current.map((section) => (section.id === id ? { ...section, ...patch } : section)))
+  }
+
+  function removeSection(id: string) {
+    setSections((current) => (current.length === 1 ? current : current.filter((section) => section.id !== id)))
   }
 
   async function handleImage(event: ChangeEvent<HTMLInputElement>) {
@@ -90,25 +83,12 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
       onPublish({
         subjectId: activeSubjectId,
         title: title.trim(),
-        body: body.trim(),
-        backgroundColor,
-        textColor,
-        accentColor,
-        font,
-        size,
-        align,
-        weight,
-        italic,
+        sections,
         imageDataUrl,
       })
       setTitle('')
-      setBody('')
+      setSections([emptySection()])
       setImageDataUrl(null)
-      setItalic(false)
-      setFont(DEFAULT_POST_STYLE.font)
-      setSize(DEFAULT_POST_STYLE.size)
-      setAlign(DEFAULT_POST_STYLE.align)
-      setWeight(DEFAULT_POST_STYLE.weight)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not publish that post.')
     }
@@ -151,19 +131,61 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
             className={inputClass}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="What did you figure out?"
+            placeholder="What did you study?"
           />
         </label>
 
-        <label className="block text-sm font-medium">
-          Post
-          <textarea
-            className={`${inputClass} min-h-32`}
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            placeholder="Notes, questions, the messy middle, the aha."
-          />
-        </label>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Questions & answers</p>
+            <button
+              type="button"
+              onClick={() => setSections((current) => [...current, emptySection()])}
+              className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-primary)] hover:opacity-80"
+            >
+              <Plus size={16} />
+              Add question
+            </button>
+          </div>
+
+          {sections.map((section, index) => (
+            <div key={section.id} className="rounded-xl border border-[var(--color-border)] p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+                  Question {index + 1}
+                </p>
+                {sections.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeSection(section.id)}
+                    className="rounded-md p-1 text-[var(--color-muted)] hover:text-rose-700"
+                    aria-label={`Remove question ${index + 1}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                ) : null}
+              </div>
+              <label className="block text-sm font-medium">
+                Question
+                <input
+                  className={inputClass}
+                  value={section.question}
+                  onChange={(event) => updateSection(section.id, { question: event.target.value })}
+                  placeholder="What were you trying to figure out?"
+                />
+              </label>
+              <label className="block text-sm font-medium">
+                Answer
+                <textarea
+                  className={`${inputClass} min-h-24`}
+                  value={section.answer}
+                  onChange={(event) => updateSection(section.id, { answer: event.target.value })}
+                  placeholder="Write the answer, the proof, or the aha."
+                />
+              </label>
+            </div>
+          ))}
+        </div>
 
         <div className="flex flex-wrap gap-3">
           <button
@@ -180,93 +202,6 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
             </button>
           ) : null}
           <input ref={imageRef} type="file" accept="image/*" className="sr-only" onChange={handleImage} />
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <label className="text-sm font-medium">
-            Background
-            <input
-              type="color"
-              value={backgroundColor}
-              onChange={(event) => setBackgroundColor(event.target.value)}
-              className="mt-1 block h-10 w-full cursor-pointer rounded border border-[var(--color-border)]"
-            />
-          </label>
-          <label className="text-sm font-medium">
-            Text
-            <input
-              type="color"
-              value={textColor}
-              onChange={(event) => setTextColor(event.target.value)}
-              className="mt-1 block h-10 w-full cursor-pointer rounded border border-[var(--color-border)]"
-            />
-          </label>
-          <label className="text-sm font-medium">
-            Accent
-            <input
-              type="color"
-              value={accentColor}
-              onChange={(event) => setAccentColor(event.target.value)}
-              className="mt-1 block h-10 w-full cursor-pointer rounded border border-[var(--color-border)]"
-            />
-          </label>
-          <label className="text-sm font-medium">
-            Font
-            <select className={inputClass} value={font} onChange={(event) => setFont(event.target.value as FontChoice)}>
-              <option value="sans">Sans</option>
-              <option value="serif">Serif</option>
-              <option value="mono">Mono</option>
-              <option value="cursive">Cursive</option>
-            </select>
-          </label>
-          <label className="text-sm font-medium">
-            Size
-            <select className={inputClass} value={size} onChange={(event) => setSize(event.target.value as SizeChoice)}>
-              <option value="sm">Small</option>
-              <option value="md">Medium</option>
-              <option value="lg">Large</option>
-              <option value="xl">Extra large</option>
-            </select>
-          </label>
-          <label className="text-sm font-medium">
-            Weight
-            <select
-              className={inputClass}
-              value={weight}
-              onChange={(event) => setWeight(event.target.value as WeightChoice)}
-            >
-              <option value="normal">Regular</option>
-              <option value="medium">Medium</option>
-              <option value="bold">Bold</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium mr-1">Align</span>
-          <button type="button" aria-label="Align left" onClick={() => setAlign('left')} className={alignButton(align === 'left')}>
-            <AlignLeft size={16} />
-          </button>
-          <button
-            type="button"
-            aria-label="Align center"
-            onClick={() => setAlign('center')}
-            className={alignButton(align === 'center')}
-          >
-            <AlignCenter size={16} />
-          </button>
-          <button
-            type="button"
-            aria-label="Align right"
-            onClick={() => setAlign('right')}
-            className={alignButton(align === 'right')}
-          >
-            <AlignRight size={16} />
-          </button>
-          <label className="ml-3 inline-flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={italic} onChange={(event) => setItalic(event.target.checked)} />
-            Italic
-          </label>
         </div>
 
         {error ? (
@@ -289,12 +224,4 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
       </div>
     </section>
   )
-}
-
-function alignButton(active: boolean): string {
-  return `rounded-md border p-2 ${
-    active
-      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
-      : 'border-[var(--color-border)] bg-white'
-  }`
 }
