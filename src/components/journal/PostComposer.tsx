@@ -12,14 +12,14 @@ import PostCard from './PostCard'
 type PostComposerProps = {
   subjects: Subject[]
   defaultSubjectId: string | null
-  onPublish: (post: Omit<JournalPost, 'id' | 'createdAt'>) => void
+  onPublish: (post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>) => void
 }
 
 const inputClass =
   'mt-1 w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 outline-none focus:border-[var(--color-primary)]'
 
 function emptySection(): PostSection {
-  return { id: createEntryId(), question: '', answer: '' }
+  return { id: createEntryId(), question: '', answer: '', askedBy: null }
 }
 
 export default function PostComposer({ subjects, defaultSubjectId, onPublish }: PostComposerProps) {
@@ -49,6 +49,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
     subjectId: activeSubjectId,
     title,
     sections,
+    comments: [],
     imageDataUrl,
     createdAt: new Date().toISOString(),
   }

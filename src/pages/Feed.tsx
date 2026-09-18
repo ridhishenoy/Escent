@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import PostCard from '../components/journal/PostCard'
 import { getJournal, getProfile } from '../lib/journal'
@@ -7,6 +7,7 @@ import { useAuth } from '../store/auth'
 
 export default function Feed() {
   const username = useAuth((state) => state.username)
+  const [revision, setRevision] = useState(0)
 
   const items = useMemo(() => {
     if (!username) {
@@ -24,7 +25,7 @@ export default function Feed() {
         }))
       })
       .sort((left, right) => right.post.createdAt.localeCompare(left.post.createdAt))
-  }, [username])
+  }, [username, revision])
 
   if (!username) {
     return <Navigate to="/auth" replace />
@@ -61,7 +62,15 @@ export default function Feed() {
                 </div>
               </Link>
               <div className="flex-1">
-                <PostCard post={post} subject={subject} editable={false} onDelete={() => undefined} />
+                <PostCard
+                  post={post}
+                  subject={subject}
+                  editable={false}
+                  onDelete={() => undefined}
+                  ownerUsername={author.username}
+                  viewerUsername={username}
+                  onUpdated={() => setRevision((value) => value + 1)}
+                />
               </div>
             </div>
           ))}

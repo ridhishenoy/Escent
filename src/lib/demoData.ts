@@ -30,10 +30,12 @@ function post(
     title,
     imageDataUrl: null,
     createdAt: hoursAgo(hours),
+    comments: [],
     sections: sections.map((section) => ({
       id: createEntryId(),
       question: section.question,
       answer: section.answer,
+      askedBy: null,
     })),
   }
 }

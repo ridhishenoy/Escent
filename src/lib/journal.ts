@@ -19,6 +19,14 @@ export type PostSection = {
   id: string
   question: string
   answer: string
+  askedBy: string | null
+}
+
+export type PostComment = {
+  id: string
+  authorUsername: string
+  body: string
+  createdAt: string
 }
 
 export type JournalPost = {
@@ -26,6 +34,7 @@ export type JournalPost = {
   subjectId: string
   title: string
   sections: PostSection[]
+  comments: PostComment[]
   imageDataUrl: string | null
   createdAt: string
 }
@@ -35,8 +44,10 @@ export type Journal = {
   posts: JournalPost[]
 }
 
-type StoredPost = Partial<JournalPost> & {
+type StoredPost = Partial<Omit<JournalPost, 'sections' | 'comments'>> & {
   body?: string
+  sections?: Array<Partial<PostSection>>
+  comments?: Array<Partial<PostComment> & { body?: string; authorUsername: string }>
 }
 
 export const SUBJECT_COLORS = ['#ec4899', '#db2777', '#f472b6', '#fb7185', '#c084fc', '#f43f5e', '#e11d48', '#9d174d']
@@ -116,16 +127,29 @@ function normalizePost(post: StoredPost): JournalPost {
         id: section.id || createEntryId(),
         question: section.question ?? '',
         answer: section.answer ?? '',
+        askedBy: section.askedBy ?? null,
       }))
     : post.body?.trim()
-      ? [{ id: createEntryId(), question: 'Notes', answer: post.body }]
+      ? [{ id: createEntryId(), question: 'Notes', answer: post.body, askedBy: null }]
       : []
+
+  const comments = Array.isArray(post.comments)
+    ? post.comments
+        .filter((comment) => Boolean(comment.authorUsername && comment.body?.trim()))
+        .map((comment) => ({
+          id: comment.id || createEntryId(),
+          authorUsername: comment.authorUsername,
+          body: (comment.body ?? '').trim(),
+          createdAt: comment.createdAt || new Date().toISOString(),
+        }))
+    : []
 
   return {
     id: post.id || createEntryId(),
     subjectId: post.subjectId ?? '',
     title: post.title ?? '',
     sections,
+    comments,
     imageDataUrl: post.imageDataUrl ?? null,
     createdAt: post.createdAt ?? new Date().toISOString(),
   }
@@ -173,7 +197,7 @@ export function removeSubject(username: string, subjectId: string): Journal {
   return saveJournal(username, journal)
 }
 
-export function addPost(username: string, post: Omit<JournalPost, 'id' | 'createdAt'>): Journal {
+export function addPost(username: string, post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>): Journal {
   const journal = getJournal(username)
   const subjectExists = journal.subjects.some((subject) => subject.id === post.subjectId)
   if (!subjectExists) {
@@ -185,6 +209,7 @@ export function addPost(username: string, post: Omit<JournalPost, 'id' | 'create
       ...section,
       question: section.question.trim(),
       answer: section.answer.trim(),
+      askedBy: section.askedBy ?? null,
     }))
     .filter((section) => section.question || section.answer)
 
@@ -195,6 +220,7 @@ export function addPost(username: string, post: Omit<JournalPost, 'id' | 'create
   journal.posts.unshift({
     ...post,
     sections,
+    comments: [],
     id: createEntryId(),
     createdAt: new Date().toISOString(),
   })
@@ -205,6 +231,91 @@ export function removePost(username: string, postId: string): Journal {
   const journal = getJournal(username)
   journal.posts = journal.posts.filter((post) => post.id !== postId)
   return saveJournal(username, journal)
+}
+
+function updatePost(username: string, postId: string, updater: (post: JournalPost) => JournalPost): Journal {
+  const journal = getJournal(username)
+  const index = journal.posts.findIndex((post) => post.id === postId)
+  if (index < 0) {
+    throw new Error('That post is gone.')
+  }
+
+  journal.posts[index] = updater(journal.posts[index])
+  return saveJournal(username, journal)
+}
+
+export function addQuestionToPost(ownerUsername: string, postId: string, askedBy: string, question: string): Journal {
+  const trimmed = question.trim()
+  if (!trimmed) {
+    throw new Error('Write a question first.')
+  }
+
+  return updatePost(ownerUsername, postId, (post) => ({
+    ...post,
+    sections: [
+      ...post.sections,
+      {
+        id: createEntryId(),
+        question: trimmed,
+        answer: '',
+        askedBy,
+      },
+    ],
+  }))
+}
+
+export function answerPostQuestion(ownerUsername: string, postId: string, sectionId: string, answer: string): Journal {
+  const trimmed = answer.trim()
+  if (!trimmed) {
+    throw new Error('Write an answer first.')
+  }
+
+  return updatePost(ownerUsername, postId, (post) => ({
+    ...post,
+    sections: post.sections.map((section) => (section.id === sectionId ? { ...section, answer: trimmed } : section)),
+  }))
+}
+
+export function addCommentToPost(ownerUsername: string, postId: string, authorUsername: string, body: string): Journal {
+  const trimmed = body.trim()
+  if (!trimmed) {
+    throw new Error('Write a comment first.')
+  }
+
+  return updatePost(ownerUsername, postId, (post) => ({
+    ...post,
+    comments: [
+      ...post.comments,
+      {
+        id: createEntryId(),
+        authorUsername,
+        body: trimmed,
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  }))
+}
+
+export function removePostComment(
+  ownerUsername: string,
+  postId: string,
+  commentId: string,
+  requester: string,
+): Journal {
+  return updatePost(ownerUsername, postId, (post) => {
+    const comment = post.comments.find((item) => item.id === commentId)
+    if (!comment) {
+      throw new Error('That comment is gone.')
+    }
+    if (requester !== ownerUsername && requester !== comment.authorUsername) {
+      throw new Error('You cannot delete that comment.')
+    }
+
+    return {
+      ...post,
+      comments: post.comments.filter((item) => item.id !== commentId),
+    }
+  })
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

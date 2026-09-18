@@ -106,7 +106,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
     }
   }
 
-  function handlePublish(post: Omit<JournalPost, 'id' | 'createdAt'>) {
+  function handlePublish(post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>) {
     const next = addPost(username, post)
     setJournal(next)
   }
@@ -201,6 +201,9 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                 subject={journal.subjects.find((subject) => subject.id === post.subjectId)}
                 editable={isOwner}
                 onDelete={handleDeletePost}
+                ownerUsername={username}
+                viewerUsername={currentUsername}
+                onUpdated={setJournal}
               />
             ))}
           </div>
