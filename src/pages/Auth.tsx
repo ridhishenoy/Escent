@@ -1,7 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { AuthError, authenticateUser, registerUser } from '@/lib/accounts'
-import { useAuth } from '@/store/auth'
+import { AuthError, authenticateUser, registerUser } from '../lib/accounts'
+import { useAuth } from '../store/auth'
 
 const inputClassName =
   'mt-1 w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-[var(--color-foreground)] outline-none transition-shadow focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-soft)]'
