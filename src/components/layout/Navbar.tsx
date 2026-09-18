@@ -1,6 +1,16 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/store/auth'
 
 export default function Navbar() {
+  const username = useAuth((state) => state.username)
+  const logout = useAuth((state) => state.logout)
+  const navigate = useNavigate()
+
+  function handleLogout() {
+    logout()
+    navigate('/')
+  }
+
   return (
     <header className="border-b border-[var(--color-border)] bg-[var(--color-card)] sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -10,12 +20,35 @@ export default function Navbar() {
           </Link>
         </div>
         <nav className="flex items-center gap-4">
-          <Link to="/auth" className="text-sm font-medium hover:text-[var(--color-primary)] transition-colors">
-            Login
-          </Link>
-          <Link to="/auth?signup=true" className="text-sm font-medium bg-[var(--color-primary)] text-white px-4 py-2 rounded-md hover:opacity-90 transition-opacity">
-            Sign Up
-          </Link>
+          {username ? (
+            <>
+              <Link
+                to={`/${username}`}
+                className="text-sm font-medium hover:text-[var(--color-primary)] transition-colors"
+              >
+                @{username}
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-sm font-medium hover:text-[var(--color-primary)] transition-colors"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/auth" className="text-sm font-medium hover:text-[var(--color-primary)] transition-colors">
+                Login
+              </Link>
+              <Link
+                to="/auth?signup=true"
+                className="text-sm font-medium bg-[var(--color-primary)] text-white px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </header>
