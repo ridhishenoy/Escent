@@ -31,7 +31,7 @@ export default function Feed() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Feed</h1>
         <p className="text-[var(--color-muted)] mt-1">Findings from people you follow.</p>
@@ -42,9 +42,9 @@ export default function Feed() {
           Your feed is quiet. Find people and send a follow request — once they accept, their posts land here.
         </p>
       ) : (
-        <div className="space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
           {items.map(({ author, post, subject }) => (
-            <div key={`${author.username}-${post.id}`} className="space-y-2">
+            <div key={`${author.username}-${post.id}`} className="flex flex-col gap-2 min-w-0 h-full">
               <Link to={`/${author.username}`} className="flex items-center gap-3 px-1">
                 {author.avatarDataUrl ? (
                   <img
@@ -55,12 +55,14 @@ export default function Feed() {
                 ) : (
                   <span className="h-9 w-9 rounded-full bg-[var(--color-primary-soft)]" />
                 )}
-                <div>
-                  <p className="text-sm font-semibold leading-tight">{author.displayName}</p>
-                  <p className="text-xs text-[var(--color-muted)]">@{author.username}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-tight truncate">{author.displayName}</p>
+                  <p className="text-xs text-[var(--color-muted)] truncate">@{author.username}</p>
                 </div>
               </Link>
-              <PostCard post={post} subject={subject} editable={false} onDelete={() => undefined} />
+              <div className="flex-1">
+                <PostCard post={post} subject={subject} editable={false} onDelete={() => undefined} />
+              </div>
             </div>
           ))}
         </div>

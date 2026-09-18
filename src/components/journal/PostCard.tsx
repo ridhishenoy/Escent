@@ -11,11 +11,11 @@ type PostCardProps = {
 
 export default function PostCard({ post, subject, editable, onDelete }: PostCardProps) {
   return (
-    <article className="rounded-2xl border border-[var(--color-border)] bg-white overflow-hidden shadow-sm">
+    <article className="rounded-2xl border border-[var(--color-border)] bg-white overflow-hidden shadow-sm h-full flex flex-col">
       {post.imageDataUrl ? (
         <img src={post.imageDataUrl} alt="" className="w-full max-h-80 object-cover" />
       ) : null}
-      <div className="p-5 space-y-4">
+      <div className="p-5 space-y-4 flex-1 flex flex-col">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             {subject ? (
@@ -38,7 +38,7 @@ export default function PostCard({ post, subject, editable, onDelete }: PostCard
         </div>
 
         {post.sections.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1">
             {post.sections.map((section, index) => (
               <section
                 key={section.id}
@@ -62,7 +62,7 @@ export default function PostCard({ post, subject, editable, onDelete }: PostCard
           </div>
         ) : null}
 
-        <p className="text-xs text-[var(--color-muted)]">
+        <p className="text-xs text-[var(--color-muted)] mt-auto">
           {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
         </p>
       </div>
