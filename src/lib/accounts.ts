@@ -1,6 +1,6 @@
 const USERS_KEY = 'escent.accounts'
 
-const RESERVED_USERNAMES = new Set(['auth', 'login', 'signup', 'logout', 'setup', 'journal'])
+const RESERVED_USERNAMES = new Set(['auth', 'login', 'signup', 'logout', 'setup', 'journal', 'feed', 'people', 'find'])
 
 export class AuthError extends Error {
   constructor(message: string) {
@@ -96,6 +96,10 @@ export function validateUsername(username: string): string {
 export function isUsernameTaken(username: string): boolean {
   const normalized = normalizeUsername(username)
   return Boolean(readUsers()[normalized])
+}
+
+export function listUsernames(): string[] {
+  return Object.keys(readUsers())
 }
 
 export async function registerUser(username: string, password: string): Promise<string> {

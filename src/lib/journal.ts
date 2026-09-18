@@ -1,3 +1,5 @@
+import { listUsernames } from './accounts'
+
 const PROFILES_KEY = 'escent.profiles'
 const JOURNALS_KEY = 'escent.journals'
 
@@ -82,6 +84,25 @@ export function getProfile(username: string): UserProfile {
   )
 }
 
+export function listProfiles(): UserProfile[] {
+  return Object.values(readProfiles())
+}
+
+export function listJournalOwners(): string[] {
+  return Object.keys(readJournals())
+}
+
+export function listDiscoverablePeople(exclude?: string): UserProfile[] {
+  const names = new Set([...listUsernames(), ...listProfiles().map((profile) => profile.username), ...listJournalOwners()])
+  if (exclude) {
+    names.delete(exclude)
+  }
+
+  return [...names]
+    .map((username) => getProfile(username))
+    .sort((left, right) => left.displayName.localeCompare(right.displayName))
+}
+
 export function saveProfile(profile: UserProfile): UserProfile {
   const profiles = readProfiles()
   profiles[profile.username] = profile
@@ -123,6 +144,10 @@ function saveJournal(username: string, journal: Journal): Journal {
   journals[username] = journal
   writeJournals(journals)
   return journal
+}
+
+export function replaceJournal(username: string, journal: Journal): Journal {
+  return saveJournal(username, journal)
 }
 
 export function addSubject(username: string, name: string, color: string): Journal {

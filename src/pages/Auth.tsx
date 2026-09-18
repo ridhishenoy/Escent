@@ -20,7 +20,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (currentUsername) {
-      navigate(`/${currentUsername}`, { replace: true })
+      navigate('/feed')
     }
   }, [currentUsername, navigate])
 
@@ -40,7 +40,7 @@ export default function Auth() {
         : await authenticateUser(username, password)
 
       signIn(savedUsername)
-      navigate(`/${savedUsername}`)
+      navigate('/feed')
     } catch (caught) {
       if (caught instanceof AuthError) {
         setError(caught.message)

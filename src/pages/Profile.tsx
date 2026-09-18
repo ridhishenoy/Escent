@@ -4,6 +4,7 @@ import AvatarUploader from '../components/journal/AvatarUploader'
 import PostCard from '../components/journal/PostCard'
 import PostComposer from '../components/journal/PostComposer'
 import SubjectManager from '../components/journal/SubjectManager'
+import FollowButton from '../components/social/FollowButton'
 import {
   addPost,
   addSubject,
@@ -17,6 +18,7 @@ import {
   type JournalPost,
   type UserProfile,
 } from '../lib/journal'
+import { getFollowRelation } from '../lib/social'
 import { useAuth } from '../store/auth'
 
 export default function Profile() {
@@ -45,11 +47,19 @@ type ProfileSpaceProps = {
 }
 
 function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps) {
+  const currentUsername = useAuth((state) => state.username)
   const [profile, setProfile] = useState<UserProfile>(() => getProfile(username))
   const [journal, setJournal] = useState<Journal>(() => getJournal(username))
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [photoError, setPhotoError] = useState('')
+  const [revision, setRevision] = useState(0)
+
+  const relation = useMemo(
+    () => (currentUsername ? getFollowRelation(currentUsername, username) : 'none'),
+    [currentUsername, username, revision],
+  )
+  const canSeePosts = isOwner || relation === 'following'
 
   const visiblePosts = useMemo(() => {
     if (!selectedSubjectId) {
@@ -136,7 +146,14 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
             ) : (
               <>
                 <h1 className="text-3xl font-extrabold tracking-tight">{profile.displayName}</h1>
-                <p className="text-[var(--color-muted)]">@{username}</p>
+                <p className="text-[var(--color-muted)] mb-4">@{username}</p>
+                {currentUsername ? (
+                  <FollowButton
+                    viewer={currentUsername}
+                    target={username}
+                    onChange={() => setRevision((value) => value + 1)}
+                  />
+                ) : null}
               </>
             )}
             {photoError ? (
@@ -167,7 +184,11 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
 
       <section className="space-y-4">
         <h2 className="text-lg font-bold">Journal</h2>
-        {visiblePosts.length === 0 ? (
+        {!canSeePosts ? (
+          <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-6 text-[var(--color-muted)]">
+            Follow {profile.displayName} and wait for them to accept. Then their posts show here and on your feed.
+          </p>
+        ) : visiblePosts.length === 0 ? (
           <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-6 text-[var(--color-muted)]">
             {isOwner ? 'Your findings will show up here once you publish.' : 'No posts yet.'}
           </p>
