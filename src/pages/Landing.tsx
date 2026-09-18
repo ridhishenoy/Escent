@@ -6,7 +6,7 @@ export default function Landing() {
       <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6">
         Document what you <span className="text-[var(--color-primary)]">learn.</span>
       </h1>
-      <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mb-10">
+      <p className="text-xl md:text-2xl text-[var(--color-muted)] max-w-2xl mb-10">
         A social learning journal for everything you study, solve, question and discover.
         Build your personal learning space.
       </p>
@@ -19,19 +19,19 @@ export default function Landing() {
 
       {/* Decorative mockup placeholder */}
       <div className="mt-20 relative w-full max-w-4xl mx-auto">
-        <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-blue-500 opacity-20 blur-xl"></div>
-        <div className="relative bg-white rounded-xl shadow-2xl border border-[var(--color-border)] p-8">
+        <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-soft)] opacity-30 blur-xl"></div>
+        <div className="relative bg-[var(--color-card)] rounded-xl shadow-2xl border border-[var(--color-border)] p-8">
           <div className="flex items-center gap-4 mb-6 pb-6 border-b border-[var(--color-border)]">
-            <div className="w-16 h-16 rounded-full bg-gray-200"></div>
+            <div className="w-16 h-16 rounded-full bg-[var(--color-primary-soft)]"></div>
             <div className="text-left">
               <h3 className="text-xl font-bold">Ridhi Shenoy</h3>
-              <p className="text-gray-500">@ridhi • Information Science student</p>
+              <p className="text-[var(--color-muted)]">@ridhi • Information Science student</p>
             </div>
           </div>
           <div className="space-y-4">
-            <div className="h-4 bg-gray-100 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-100 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-100 rounded w-5/6"></div>
+            <div className="h-4 bg-[var(--color-background)] rounded w-3/4"></div>
+            <div className="h-4 bg-[var(--color-background)] rounded w-1/2"></div>
+            <div className="h-4 bg-[var(--color-background)] rounded w-5/6"></div>
           </div>
         </div>
       </div>

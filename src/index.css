@@ -1,19 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --primary: #10b981;
-  --bg-color: #f8fafc;
-  --text-color: #0f172a;
+  --primary: #ec4899;
+  --primary-soft: #f9a8d4;
+  --bg-color: #fff1f5;
+  --text-color: #4a1233;
+  --text-muted: #9d5c7a;
   --card-bg: #ffffff;
-  --border-color: #e2e8f0;
+  --border-color: #fbcfe8;
   --border-radius: 0.5rem;
   --font-family: 'Inter', system-ui, sans-serif;
 }
 
 @theme {
   --color-primary: var(--primary);
+  --color-primary-soft: var(--primary-soft);
   --color-background: var(--bg-color);
   --color-foreground: var(--text-color);
+  --color-muted: var(--text-muted);
   --color-card: var(--card-bg);
   --color-border: var(--border-color);
   --radius-custom: var(--border-radius);
@@ -32,4 +36,9 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+::selection {
+  background-color: var(--color-primary-soft);
+  color: var(--color-foreground);
 }
