@@ -11,7 +11,7 @@ export default function Auth() {
   const isSignup = searchParams.get('signup') === 'true'
   const navigate = useNavigate()
   const currentUsername = useAuth((state) => state.username)
-  const setUsername = useAuth((state) => state.setUsername)
+  const signIn = useAuth((state) => state.signIn)
 
   const [username, setUsernameField] = useState('')
   const [password, setPassword] = useState('')
@@ -39,7 +39,7 @@ export default function Auth() {
         ? await registerUser(username, password)
         : await authenticateUser(username, password)
 
-      setUsername(savedUsername)
+      signIn(savedUsername)
       navigate(`/${savedUsername}`)
     } catch (caught) {
       if (caught instanceof AuthError) {

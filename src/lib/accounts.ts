@@ -1,6 +1,6 @@
 const USERS_KEY = 'escent.accounts'
 
-const RESERVED_USERNAMES = new Set(['auth', 'login', 'signup', 'logout'])
+const RESERVED_USERNAMES = new Set(['auth', 'login', 'signup', 'logout', 'setup', 'journal'])
 
 export class AuthError extends Error {
   constructor(message: string) {
