@@ -1,4 +1,3 @@
-import { isDemoUser } from '../../lib/demoData'
 import { cancelFollowRequest, getFollowRelation, sendFollowRequest, unfollow, type FollowRelation } from '../../lib/social'
 
 type FollowButtonProps = {
@@ -36,7 +35,7 @@ export default function FollowButton({ viewer, target, onChange }: FollowButtonP
     switch (relation) {
       case 'none':
       case 'pending_in':
-        sendFollowRequest(viewer, target, isDemoUser(target))
+        sendFollowRequest(viewer, target, false)
         break
       case 'pending_out':
         cancelFollowRequest(viewer, target)

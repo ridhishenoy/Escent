@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import { ensureDemoWorld, welcomeDemoRequest } from '../../lib/demoData'
 import { useAuth } from '../../store/auth'
 import BottomNav from './BottomNav'
 import Navbar from './Navbar'
@@ -10,13 +9,8 @@ export default function Layout() {
   const signIn = useAuth((state) => state.signIn)
 
   useEffect(() => {
-    ensureDemoWorld()
-  }, [])
-
-  useEffect(() => {
     if (username) {
       signIn(username)
-      welcomeDemoRequest(username)
     }
   }, [username, signIn])
 
