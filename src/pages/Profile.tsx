@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo, useEffect } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import AvatarUploader from '../components/journal/AvatarUploader'
 import PostCard from '../components/journal/PostCard'
@@ -14,9 +15,7 @@ import {
   removePost,
   removeSubject,
   saveProfile,
-  type Journal,
   type JournalPost,
-  type UserProfile,
 } from '../lib/journal'
 import { getFollowRelation } from '../lib/social'
 import { useAuth } from '../store/auth'
@@ -48,32 +47,50 @@ type ProfileSpaceProps = {
 
 function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps) {
   const currentUsername = useAuth((state) => state.username)
-  const [profile, setProfile] = useState<UserProfile>(() => getProfile(username))
-  const [journal, setJournal] = useState<Journal>(() => getJournal(username))
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null)
-  const [displayName, setDisplayName] = useState(profile.displayName)
   const [photoError, setPhotoError] = useState('')
-  const [revision, setRevision] = useState(0)
 
-  const relation = useMemo(
-    () => (currentUsername ? getFollowRelation(currentUsername, username) : 'none'),
-    [currentUsername, username, revision],
-  )
+  const { data: profile, refetch: refetchProfile, isLoading: isProfileLoading } = useQuery({
+    queryKey: ['profile', username],
+    queryFn: () => getProfile(username),
+    enabled: Boolean(username),
+  })
+
+  const [displayName, setDisplayName] = useState(profile?.displayName || username)
+
+  useEffect(() => {
+    if (profile?.displayName) {
+      setDisplayName(profile.displayName)
+    }
+  }, [profile?.displayName])
+
+  const { data: journal, refetch: refetchJournal, isLoading: isJournalLoading } = useQuery({
+    queryKey: ['journal', username],
+    queryFn: () => getJournal(username),
+    enabled: Boolean(username),
+  })
+
+  const { data: relation = 'none', refetch: refetchRelation } = useQuery({
+    queryKey: ['relation', currentUsername, username],
+    queryFn: () => getFollowRelation(currentUsername!, username),
+    enabled: Boolean(currentUsername && username),
+  })
+
   const canSeePosts = isOwner || relation === 'following'
 
   const visiblePosts = useMemo(() => {
-    if (!selectedSubjectId) {
-      return journal.posts
-    }
+    if (!journal) return []
+    if (!selectedSubjectId) return journal.posts
     return journal.posts.filter((post) => post.subjectId === selectedSubjectId)
-  }, [journal.posts, selectedSubjectId])
+  }, [journal, selectedSubjectId])
 
   async function handleAvatar(file: File) {
+    if (!profile) return
     setPhotoError('')
     try {
       const avatarDataUrl = await fileToCompressedDataUrl(file, 480)
-      const next = saveProfile({ ...profile, avatarDataUrl })
-      setProfile(next)
+      await saveProfile({ ...profile, avatarDataUrl })
+      refetchProfile()
       if (isOwner) {
         onSessionProfile({ avatarUrl: avatarDataUrl })
       }
@@ -82,37 +99,43 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
     }
   }
 
-  function handleDisplayNameBlur() {
+  async function handleDisplayNameBlur() {
+    if (!profile) return
     const nextName = displayName.trim() || username
     setDisplayName(nextName)
-    const next = saveProfile({ ...profile, displayName: nextName })
-    setProfile(next)
+    await saveProfile({ ...profile, displayName: nextName })
+    refetchProfile()
     onSessionProfile({ displayName: nextName })
   }
 
-  function handleAddSubject(name: string, color: string) {
-    const next = addSubject(username, name, color)
-    setJournal(next)
-    if (!selectedSubjectId && next.subjects[0]) {
-      setSelectedSubjectId(next.subjects[0].id)
+  async function handleAddSubject(name: string, color: string) {
+    await addSubject(username, name, color)
+    await refetchJournal()
+    if (!selectedSubjectId) {
+      // Small delay or refetch then select the new subject might be needed
     }
   }
 
-  function handleRemoveSubject(id: string) {
-    const next = removeSubject(username, id)
-    setJournal(next)
+  async function handleRemoveSubject(id: string) {
+    await removeSubject(username, id)
+    await refetchJournal()
     if (selectedSubjectId === id) {
       setSelectedSubjectId(null)
     }
   }
 
-  function handlePublish(post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>) {
-    const next = addPost(username, post)
-    setJournal(next)
+  async function handlePublish(post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>) {
+    await addPost(username, post)
+    await refetchJournal()
   }
 
-  function handleDeletePost(id: string) {
-    setJournal(removePost(username, id))
+  async function handleDeletePost(id: string) {
+    await removePost(username, id)
+    await refetchJournal()
+  }
+
+  if (isProfileLoading || isJournalLoading || !profile || !journal) {
+    return <div className="p-8 text-[var(--color-muted)]">Loading profile...</div>
   }
 
   return (
@@ -151,7 +174,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                   <FollowButton
                     viewer={currentUsername}
                     target={username}
-                    onChange={() => setRevision((value) => value + 1)}
+                    onChange={() => refetchRelation()}
                   />
                 ) : null}
               </>
@@ -203,7 +226,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                 onDelete={handleDeletePost}
                 ownerUsername={username}
                 viewerUsername={currentUsername}
-                onUpdated={setJournal}
+                onUpdated={() => refetchJournal()}
               />
             ))}
           </div>

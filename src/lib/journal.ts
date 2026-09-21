@@ -1,7 +1,5 @@
-import { listUsernames } from './accounts'
-
-const PROFILES_KEY = 'escent.profiles'
-const JOURNALS_KEY = 'escent.journals'
+import { supabase } from './supabase'
+import { getProfileId } from './social'
 
 export type UserProfile = {
   username: string
@@ -44,165 +42,128 @@ export type Journal = {
   posts: JournalPost[]
 }
 
-type StoredPost = Partial<Omit<JournalPost, 'sections' | 'comments'>> & {
-  body?: string
-  sections?: Array<Partial<PostSection>>
-  comments?: Array<Partial<PostComment> & { body?: string; authorUsername: string }>
-}
-
 export const SUBJECT_COLORS = ['#ec4899', '#db2777', '#f472b6', '#fb7185', '#c084fc', '#f43f5e', '#e11d48', '#9d174d']
 
 export function createEntryId(): string {
   return crypto.randomUUID()
 }
 
-function readJson<T>(key: string, fallback: T): T {
-  const raw = localStorage.getItem(key)
-  if (!raw) {
-    return fallback
-  }
-
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
+export async function getProfile(username: string): Promise<UserProfile> {
+  const { data } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
+  return {
+    username,
+    displayName: data?.display_name || username,
+    avatarDataUrl: data?.avatar_url || null,
   }
 }
 
-function readProfiles(): Record<string, UserProfile> {
-  return readJson(PROFILES_KEY, {})
+export async function listProfiles(): Promise<UserProfile[]> {
+  const { data } = await supabase.from('profiles').select('*')
+  return (data || []).map(row => ({
+    username: row.username,
+    displayName: row.display_name || row.username,
+    avatarDataUrl: row.avatar_url || null,
+  }))
 }
 
-function writeProfiles(profiles: Record<string, UserProfile>): void {
-  localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles))
+export async function listJournalOwners(): Promise<string[]> {
+  const { data } = await supabase.from('posts').select('profiles!inner(username)')
+  const set = new Set((data || []).map((row: any) => row.profiles?.username).filter(Boolean))
+  return Array.from(set)
 }
 
-function readJournals(): Record<string, Journal> {
-  return readJson(JOURNALS_KEY, {})
+export async function listDiscoverablePeople(exclude?: string): Promise<UserProfile[]> {
+  const profiles = await listProfiles()
+  const filtered = exclude ? profiles.filter(p => p.username !== exclude) : profiles
+  return filtered.sort((left, right) => left.displayName.localeCompare(right.displayName))
 }
 
-function writeJournals(journals: Record<string, Journal>): void {
-  localStorage.setItem(JOURNALS_KEY, JSON.stringify(journals))
-}
+export async function saveProfile(profile: UserProfile): Promise<UserProfile> {
+  const { data: user } = await supabase.auth.getUser()
+  if (!user.user) throw new Error('Not authenticated')
 
-export function getProfile(username: string): UserProfile {
-  return (
-    readProfiles()[username] ?? {
-      username,
-      displayName: username,
-      avatarDataUrl: null,
-    }
-  )
-}
+  await supabase.from('profiles').update({
+    display_name: profile.displayName,
+    avatar_url: profile.avatarDataUrl,
+  }).eq('id', user.user.id)
 
-export function listProfiles(): UserProfile[] {
-  return Object.values(readProfiles())
-}
-
-export function listJournalOwners(): string[] {
-  return Object.keys(readJournals())
-}
-
-export function listDiscoverablePeople(exclude?: string): UserProfile[] {
-  const names = new Set([...listUsernames(), ...listProfiles().map((profile) => profile.username), ...listJournalOwners()])
-  if (exclude) {
-    names.delete(exclude)
-  }
-
-  return [...names]
-    .map((username) => getProfile(username))
-    .sort((left, right) => left.displayName.localeCompare(right.displayName))
-}
-
-export function saveProfile(profile: UserProfile): UserProfile {
-  const profiles = readProfiles()
-  profiles[profile.username] = profile
-  writeProfiles(profiles)
   return profile
 }
 
-function normalizePost(post: StoredPost): JournalPost {
-  const sections = Array.isArray(post.sections)
-    ? post.sections.map((section) => ({
-        id: section.id || createEntryId(),
-        question: section.question ?? '',
-        answer: section.answer ?? '',
-        askedBy: section.askedBy ?? null,
-      }))
-    : post.body?.trim()
-      ? [{ id: createEntryId(), question: 'Notes', answer: post.body, askedBy: null }]
-      : []
+export async function getJournal(username: string): Promise<Journal> {
+  const userId = await getProfileId(username)
+  if (!userId) return { subjects: [], posts: [] }
 
-  const comments = Array.isArray(post.comments)
-    ? post.comments
-        .filter((comment) => Boolean(comment.authorUsername && comment.body?.trim()))
-        .map((comment) => ({
-          id: comment.id || createEntryId(),
-          authorUsername: comment.authorUsername,
-          body: (comment.body ?? '').trim(),
-          createdAt: comment.createdAt || new Date().toISOString(),
-        }))
-    : []
+  const { data: subjectsData } = await supabase.from('subjects').select('*').eq('user_id', userId)
+  const { data: postsData } = await supabase.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false })
 
-  return {
-    id: post.id || createEntryId(),
-    subjectId: post.subjectId ?? '',
-    title: post.title ?? '',
-    sections,
-    comments,
-    imageDataUrl: post.imageDataUrl ?? null,
-    createdAt: post.createdAt ?? new Date().toISOString(),
+  if (!postsData || postsData.length === 0) {
+    return {
+      subjects: (subjectsData || []).map(s => ({ id: s.id, name: s.name, color: s.color })),
+      posts: []
+    }
   }
+
+  const postIds = postsData.map(p => p.id)
+  
+  const { data: sectionsData } = await supabase.from('post_sections').select('*').in('post_id', postIds)
+  const { data: commentsData } = await supabase.from('post_comments').select('*, profiles!inner(username)').in('post_id', postIds).order('created_at', { ascending: true })
+
+  const subjects = (subjectsData || []).map(s => ({ id: s.id, name: s.name, color: s.color }))
+  
+  const posts = postsData.map(post => {
+    const postSections = (sectionsData || []).filter(s => s.post_id === post.id).map(s => ({
+      id: s.id,
+      question: s.question,
+      answer: s.answer || '',
+      askedBy: s.asked_by
+    }))
+
+    const postComments = (commentsData || []).filter(c => c.post_id === post.id).map(c => ({
+      id: c.id,
+      authorUsername: c.profiles.username,
+      body: c.body,
+      createdAt: c.created_at
+    }))
+
+    return {
+      id: post.id,
+      subjectId: post.subject_id,
+      title: post.title,
+      imageDataUrl: post.image_url,
+      createdAt: post.created_at,
+      sections: postSections,
+      comments: postComments
+    }
+  })
+
+  return { subjects, posts }
 }
 
-export function getJournal(username: string): Journal {
-  const stored = readJournals()[username] ?? { subjects: [], posts: [] }
-  return {
-    subjects: stored.subjects ?? [],
-    posts: (stored.posts as StoredPost[]).map(normalizePost),
-  }
-}
-
-function saveJournal(username: string, journal: Journal): Journal {
-  const journals = readJournals()
-  journals[username] = journal
-  writeJournals(journals)
-  return journal
-}
-
-export function replaceJournal(username: string, journal: Journal): Journal {
-  return saveJournal(username, journal)
-}
-
-export function addSubject(username: string, name: string, color: string): Journal {
+export async function addSubject(username: string, name: string, color: string): Promise<void> {
   const trimmed = name.trim()
-  if (!trimmed) {
-    throw new Error('Give the subject a name.')
-  }
+  if (!trimmed) throw new Error('Give the subject a name.')
 
-  const journal = getJournal(username)
-  const taken = journal.subjects.some((subject) => subject.name.toLowerCase() === trimmed.toLowerCase())
-  if (taken) {
-    throw new Error('You already have that subject.')
-  }
+  const userId = await getProfileId(username)
+  if (!userId) throw new Error('User not found.')
 
-  journal.subjects.push({ id: createEntryId(), name: trimmed, color })
-  return saveJournal(username, journal)
+  const { data: existing } = await supabase.from('subjects').select('id').eq('user_id', userId).ilike('name', trimmed).maybeSingle()
+  if (existing) throw new Error('You already have that subject.')
+
+  await supabase.from('subjects').insert({
+    user_id: userId,
+    name: trimmed,
+    color,
+  })
 }
 
-export function removeSubject(username: string, subjectId: string): Journal {
-  const journal = getJournal(username)
-  journal.subjects = journal.subjects.filter((subject) => subject.id !== subjectId)
-  journal.posts = journal.posts.filter((post) => post.subjectId !== subjectId)
-  return saveJournal(username, journal)
+export async function removeSubject(_username: string, subjectId: string): Promise<void> {
+  await supabase.from('subjects').delete().eq('id', subjectId)
 }
 
-export function addPost(username: string, post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>): Journal {
-  const journal = getJournal(username)
-  const subjectExists = journal.subjects.some((subject) => subject.id === post.subjectId)
-  if (!subjectExists) {
-    throw new Error('Pick a subject first.')
-  }
+export async function addPost(username: string, post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>): Promise<void> {
+  const userId = await getProfileId(username)
+  if (!userId) throw new Error('User not found.')
 
   const sections = post.sections
     .map((section) => ({
@@ -217,105 +178,70 @@ export function addPost(username: string, post: Omit<JournalPost, 'id' | 'create
     throw new Error('Add a title or at least one question and answer.')
   }
 
-  journal.posts.unshift({
-    ...post,
-    sections,
-    comments: [],
-    id: createEntryId(),
-    createdAt: new Date().toISOString(),
-  })
-  return saveJournal(username, journal)
-}
+  const { data: insertedPost, error } = await supabase.from('posts').insert({
+    user_id: userId,
+    subject_id: post.subjectId,
+    title: post.title,
+    image_url: post.imageDataUrl,
+  }).select('id').single()
 
-export function removePost(username: string, postId: string): Journal {
-  const journal = getJournal(username)
-  journal.posts = journal.posts.filter((post) => post.id !== postId)
-  return saveJournal(username, journal)
-}
+  if (error || !insertedPost) throw new Error('Could not create post.')
 
-function updatePost(username: string, postId: string, updater: (post: JournalPost) => JournalPost): Journal {
-  const journal = getJournal(username)
-  const index = journal.posts.findIndex((post) => post.id === postId)
-  if (index < 0) {
-    throw new Error('That post is gone.')
+  if (sections.length > 0) {
+    const sectionsToInsert = sections.map(s => ({
+      post_id: insertedPost.id,
+      question: s.question,
+      answer: s.answer,
+      asked_by: s.askedBy
+    }))
+    await supabase.from('post_sections').insert(sectionsToInsert)
   }
-
-  journal.posts[index] = updater(journal.posts[index])
-  return saveJournal(username, journal)
 }
 
-export function addQuestionToPost(ownerUsername: string, postId: string, askedBy: string, question: string): Journal {
+export async function removePost(_username: string, postId: string): Promise<void> {
+  await supabase.from('posts').delete().eq('id', postId)
+}
+
+export async function addQuestionToPost(_ownerUsername: string, postId: string, askedBy: string, question: string): Promise<void> {
   const trimmed = question.trim()
-  if (!trimmed) {
-    throw new Error('Write a question first.')
-  }
+  if (!trimmed) throw new Error('Write a question first.')
 
-  return updatePost(ownerUsername, postId, (post) => ({
-    ...post,
-    sections: [
-      ...post.sections,
-      {
-        id: createEntryId(),
-        question: trimmed,
-        answer: '',
-        askedBy,
-      },
-    ],
-  }))
-}
-
-export function answerPostQuestion(ownerUsername: string, postId: string, sectionId: string, answer: string): Journal {
-  const trimmed = answer.trim()
-  if (!trimmed) {
-    throw new Error('Write an answer first.')
-  }
-
-  return updatePost(ownerUsername, postId, (post) => ({
-    ...post,
-    sections: post.sections.map((section) => (section.id === sectionId ? { ...section, answer: trimmed } : section)),
-  }))
-}
-
-export function addCommentToPost(ownerUsername: string, postId: string, authorUsername: string, body: string): Journal {
-  const trimmed = body.trim()
-  if (!trimmed) {
-    throw new Error('Write a comment first.')
-  }
-
-  return updatePost(ownerUsername, postId, (post) => ({
-    ...post,
-    comments: [
-      ...post.comments,
-      {
-        id: createEntryId(),
-        authorUsername,
-        body: trimmed,
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  }))
-}
-
-export function removePostComment(
-  ownerUsername: string,
-  postId: string,
-  commentId: string,
-  requester: string,
-): Journal {
-  return updatePost(ownerUsername, postId, (post) => {
-    const comment = post.comments.find((item) => item.id === commentId)
-    if (!comment) {
-      throw new Error('That comment is gone.')
-    }
-    if (requester !== ownerUsername && requester !== comment.authorUsername) {
-      throw new Error('You cannot delete that comment.')
-    }
-
-    return {
-      ...post,
-      comments: post.comments.filter((item) => item.id !== commentId),
-    }
+  await supabase.from('post_sections').insert({
+    post_id: postId,
+    question: trimmed,
+    answer: '',
+    asked_by: askedBy,
   })
+}
+
+export async function answerPostQuestion(_ownerUsername: string, _postId: string, sectionId: string, answer: string): Promise<void> {
+  const trimmed = answer.trim()
+  if (!trimmed) throw new Error('Write an answer first.')
+
+  await supabase.from('post_sections').update({ answer: trimmed }).eq('id', sectionId)
+}
+
+export async function addCommentToPost(_ownerUsername: string, postId: string, authorUsername: string, body: string): Promise<void> {
+  const trimmed = body.trim()
+  if (!trimmed) throw new Error('Write a comment first.')
+
+  const authorId = await getProfileId(authorUsername)
+  if (!authorId) throw new Error('Author not found.')
+
+  await supabase.from('post_comments').insert({
+    post_id: postId,
+    author_id: authorId,
+    body: trimmed,
+  })
+}
+
+export async function removePostComment(
+  _ownerUsername: string,
+  _postId: string,
+  commentId: string,
+  _requester: string,
+): Promise<void> {
+  await supabase.from('post_comments').delete().eq('id', commentId)
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

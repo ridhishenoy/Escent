@@ -1,4 +1,4 @@
-const USERS_KEY = 'escent.accounts'
+import { supabase } from './supabase'
 
 const RESERVED_USERNAMES = new Set(['auth', 'login', 'signup', 'logout', 'setup', 'journal', 'feed', 'people', 'find'])
 
@@ -7,64 +7,6 @@ export class AuthError extends Error {
     super(message)
     this.name = 'AuthError'
   }
-}
-
-type StoredUser = {
-  username: string
-  passwordHash: string
-  salt: string
-  createdAt: string
-}
-
-function bytesToHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-function createSalt(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return bytesToHex(bytes.buffer)
-}
-
-async function hashPassword(password: string, salt: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  )
-  const derived = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: encoder.encode(salt),
-      iterations: 100_000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    256,
-  )
-  return bytesToHex(derived)
-}
-
-function readUsers(): Record<string, StoredUser> {
-  const raw = localStorage.getItem(USERS_KEY)
-  if (!raw) {
-    return {}
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, StoredUser>
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeUsers(users: Record<string, StoredUser>): void {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
 }
 
 export function normalizeUsername(username: string): string {
@@ -93,13 +35,19 @@ export function validateUsername(username: string): string {
   return normalized
 }
 
-export function isUsernameTaken(username: string): boolean {
+export async function isUsernameTaken(username: string): Promise<boolean> {
   const normalized = normalizeUsername(username)
-  return Boolean(readUsers()[normalized])
+  const { data, error } = await supabase.from('profiles').select('username').eq('username', normalized).single()
+  return Boolean(data && !error)
 }
 
-export function listUsernames(): string[] {
-  return Object.keys(readUsers())
+export async function listUsernames(): Promise<string[]> {
+  const { data } = await supabase.from('profiles').select('username')
+  return (data || []).map((row) => row.username)
+}
+
+function emailForUsername(username: string): string {
+  return `${username}@escent.local`
 }
 
 export async function registerUser(username: string, password: string): Promise<string> {
@@ -113,21 +61,36 @@ export async function registerUser(username: string, password: string): Promise<
     throw new AuthError('Password must be at least 6 characters.')
   }
 
-  const users = readUsers()
-  if (users[normalized]) {
+  const taken = await isUsernameTaken(normalized)
+  if (taken) {
     throw new AuthError('That username is taken. Try another.')
   }
 
-  const salt = createSalt()
-  const passwordHash = await hashPassword(password, salt)
+  const email = emailForUsername(normalized)
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  })
 
-  users[normalized] = {
-    username: normalized,
-    passwordHash,
-    salt,
-    createdAt: new Date().toISOString(),
+  if (error) {
+    throw new AuthError(error.message)
   }
-  writeUsers(users)
+
+  const user = data.user
+  if (!user) {
+    throw new AuthError('Signup failed.')
+  }
+
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: user.id,
+    username: normalized,
+    display_name: normalized,
+  })
+
+  if (profileError) {
+    // Attempt rollback/cleanup, but mostly just error out
+    throw new AuthError('Failed to create profile: ' + profileError.message)
+  }
 
   return normalized
 }
@@ -139,15 +102,15 @@ export async function authenticateUser(username: string, password: string): Prom
     throw new AuthError('Enter your username and password.')
   }
 
-  const user = readUsers()[normalized]
-  if (!user) {
+  const email = emailForUsername(normalized)
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (error) {
     throw new AuthError('Username or password is wrong.')
   }
 
-  const passwordHash = await hashPassword(password, user.salt)
-  if (passwordHash !== user.passwordHash) {
-    throw new AuthError('Username or password is wrong.')
-  }
-
-  return user.username
+  return normalized
 }

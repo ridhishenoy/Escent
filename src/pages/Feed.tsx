@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, Navigate } from 'react-router-dom'
 import PostCard from '../components/journal/PostCard'
 import { getJournal, getProfile } from '../lib/journal'
@@ -7,25 +7,27 @@ import { useAuth } from '../store/auth'
 
 export default function Feed() {
   const username = useAuth((state) => state.username)
-  const [revision, setRevision] = useState(0)
 
-  const items = useMemo(() => {
-    if (!username) {
-      return []
-    }
-
-    return getFollowing(username)
-      .flatMap((author) => {
-        const journal = getJournal(author)
-        const profile = getProfile(author)
-        return journal.posts.map((post) => ({
-          author: profile,
-          post,
-          subject: journal.subjects.find((subject) => subject.id === post.subjectId),
-        }))
-      })
-      .sort((left, right) => right.post.createdAt.localeCompare(left.post.createdAt))
-  }, [username, revision])
+  const { data: items = [], refetch, isLoading } = useQuery({
+    queryKey: ['feed', username],
+    queryFn: async () => {
+      if (!username) return []
+      const following = await getFollowing(username)
+      const allPosts = await Promise.all(
+        following.map(async (author) => {
+          const journal = await getJournal(author)
+          const profile = await getProfile(author)
+          return journal.posts.map((post) => ({
+            author: profile,
+            post,
+            subject: journal.subjects.find((subject) => subject.id === post.subjectId),
+          }))
+        })
+      )
+      return allPosts.flat().sort((left, right) => right.post.createdAt.localeCompare(left.post.createdAt))
+    },
+    enabled: Boolean(username)
+  })
 
   if (!username) {
     return <Navigate to="/auth" replace />
@@ -38,7 +40,9 @@ export default function Feed() {
         <p className="text-[var(--color-muted)] mt-1">Findings from people you follow.</p>
       </div>
 
-      {items.length === 0 ? (
+      {isLoading ? (
+        <p className="text-[var(--color-muted)]">Loading feed...</p>
+      ) : items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-6 text-[var(--color-muted)]">
           Your feed is quiet. Find people and send a follow request — once they accept, their posts land here.
         </p>
@@ -69,7 +73,7 @@ export default function Feed() {
                   onDelete={() => undefined}
                   ownerUsername={author.username}
                   viewerUsername={username}
-                  onUpdated={() => setRevision((value) => value + 1)}
+                  onUpdated={() => refetch()}
                 />
               </div>
             </div>

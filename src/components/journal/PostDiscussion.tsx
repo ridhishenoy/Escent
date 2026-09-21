@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -7,7 +8,6 @@ import {
   addQuestionToPost,
   getProfile,
   removePostComment,
-  type Journal,
   type JournalPost,
 } from '../../lib/journal'
 
@@ -17,17 +17,49 @@ type PostDiscussionProps = {
   post: JournalPost
   ownerUsername: string
   viewerUsername: string | null
-  onUpdated: (journal: Journal) => void
+  onUpdated: () => void
 }
 
 const inputClass =
   'w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]'
+
+function CommentAuthor({ username }: { username: string }) {
+  const { data: author } = useQuery({
+    queryKey: ['profile', username],
+    queryFn: () => getProfile(username),
+    enabled: Boolean(username)
+  })
+
+  if (!author) return <span className="block h-7 w-7 rounded-full bg-[var(--color-primary-soft)]" />
+
+  return (
+    <>
+      <Link to={`/${author.username}`} className="shrink-0">
+        {author.avatarDataUrl ? (
+          <img
+            src={author.avatarDataUrl}
+            alt=""
+            className="h-7 w-7 rounded-full object-cover border border-[var(--color-border)]"
+          />
+        ) : (
+          <span className="block h-7 w-7 rounded-full bg-[var(--color-primary-soft)]" />
+        )}
+      </Link>
+      <div className="flex items-start justify-between gap-2">
+        <Link to={`/${author.username}`} className="font-semibold hover:text-[var(--color-primary)]">
+          {author.displayName}
+        </Link>
+      </div>
+    </>
+  )
+}
 
 export default function PostDiscussion({ post, ownerUsername, viewerUsername, onUpdated }: PostDiscussionProps) {
   const [mode, setMode] = useState<DiscussionMode>('idle')
   const [question, setQuestion] = useState('')
   const [comment, setComment] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const canWrite = Boolean(viewerUsername)
   const commentCount = post.comments.length
@@ -36,43 +68,52 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
     setError(caught instanceof Error ? caught.message : 'Could not update that post.')
   }
 
-  function submitQuestion(event: FormEvent<HTMLFormElement>) {
+  async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!viewerUsername) {
       return
     }
     setError('')
+    setIsSubmitting(true)
     try {
-      onUpdated(addQuestionToPost(ownerUsername, post.id, viewerUsername, question))
+      await addQuestionToPost(ownerUsername, post.id, viewerUsername, question)
+      onUpdated()
       setQuestion('')
       setMode('idle')
     } catch (caught) {
       handleError(caught)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  function submitComment(event: FormEvent<HTMLFormElement>) {
+  async function submitComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!viewerUsername) {
       return
     }
     setError('')
+    setIsSubmitting(true)
     try {
-      onUpdated(addCommentToPost(ownerUsername, post.id, viewerUsername, comment))
+      await addCommentToPost(ownerUsername, post.id, viewerUsername, comment)
+      onUpdated()
       setComment('')
       setMode('idle')
     } catch (caught) {
       handleError(caught)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  function handleDeleteComment(commentId: string) {
+  async function handleDeleteComment(commentId: string) {
     if (!viewerUsername) {
       return
     }
     setError('')
     try {
-      onUpdated(removePostComment(ownerUsername, post.id, commentId, viewerUsername))
+      await removePostComment(ownerUsername, post.id, commentId, viewerUsername)
+      onUpdated()
     } catch (caught) {
       handleError(caught)
     }
@@ -98,13 +139,15 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               placeholder="What else should they explain?"
+              disabled={isSubmitting}
             />
           </label>
           <button
             type="submit"
-            className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+            disabled={isSubmitting}
+            className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
-            Post question
+            {isSubmitting ? 'Posting...' : 'Post question'}
           </button>
         </form>
       )
@@ -119,13 +162,15 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
               value={comment}
               onChange={(event) => setComment(event.target.value)}
               placeholder="Add a thought, a correction, or a hi."
+              disabled={isSubmitting}
             />
           </label>
           <button
             type="submit"
-            className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+            disabled={isSubmitting}
+            className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
-            Post comment
+            {isSubmitting ? 'Posting...' : 'Post comment'}
           </button>
         </form>
       )
@@ -183,27 +228,13 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
       {post.comments.length > 0 ? (
         <ul className="space-y-3">
           {post.comments.map((item) => {
-            const author = getProfile(item.authorUsername)
             const canDelete = viewerUsername === ownerUsername || viewerUsername === item.authorUsername
             return (
               <li key={item.id} className="flex gap-2">
-                <Link to={`/${author.username}`} className="shrink-0">
-                  {author.avatarDataUrl ? (
-                    <img
-                      src={author.avatarDataUrl}
-                      alt=""
-                      className="h-7 w-7 rounded-full object-cover border border-[var(--color-border)]"
-                    />
-                  ) : (
-                    <span className="block h-7 w-7 rounded-full bg-[var(--color-primary-soft)]" />
-                  )}
-                </Link>
+                <CommentAuthor username={item.authorUsername} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm leading-snug">
-                      <Link to={`/${author.username}`} className="font-semibold hover:text-[var(--color-primary)]">
-                        {author.displayName}
-                      </Link>{' '}
                       <span className="whitespace-pre-wrap">{item.body}</span>
                     </p>
                     {canDelete ? (

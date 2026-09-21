@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { answerPostQuestion, getProfile, type Journal, type JournalPost, type Subject } from '../../lib/journal'
+import { answerPostQuestion, getProfile, type JournalPost, type Subject } from '../../lib/journal'
 import PostDiscussion from './PostDiscussion'
 
 type PostCardProps = {
@@ -12,7 +13,24 @@ type PostCardProps = {
   onDelete: (id: string) => void
   ownerUsername?: string
   viewerUsername?: string | null
-  onUpdated?: (journal: Journal) => void
+  onUpdated?: () => void
+}
+
+function SectionAsker({ username }: { username: string }) {
+  const { data: asker } = useQuery({
+    queryKey: ['profile', username],
+    queryFn: () => getProfile(username),
+    enabled: Boolean(username)
+  })
+  if (!asker) return null
+  return (
+    <p className="mt-1 text-xs text-[var(--color-muted)]">
+      asked by{' '}
+      <Link to={`/${asker.username}`} className="font-medium hover:text-[var(--color-primary)]">
+        @{asker.username}
+      </Link>
+    </p>
+  )
 }
 
 export default function PostCard({
@@ -57,7 +75,6 @@ export default function PostCard({
         {post.sections.length > 0 ? (
           <div className="space-y-4 flex-1">
             {post.sections.map((section, index) => {
-              const asker = section.askedBy ? getProfile(section.askedBy) : null
               return (
                 <section
                   key={section.id}
@@ -71,26 +88,21 @@ export default function PostCard({
                   ) : (
                     <p className="text-sm text-[var(--color-muted)]">No question yet</p>
                   )}
-                  {asker ? (
-                    <p className="mt-1 text-xs text-[var(--color-muted)]">
-                      asked by{' '}
-                      <Link to={`/${asker.username}`} className="font-medium hover:text-[var(--color-primary)]">
-                        @{asker.username}
-                      </Link>
-                    </p>
+                  {section.askedBy ? (
+                    <SectionAsker username={section.askedBy} />
                   ) : null}
                   {section.answer ? (
                     <p className="mt-2 whitespace-pre-wrap leading-relaxed text-[var(--color-foreground)]">
                       {section.answer}
                     </p>
-                  ) : isOwner && ownerUsername && onUpdated && asker ? (
+                  ) : isOwner && ownerUsername && onUpdated && section.askedBy ? (
                     <OwnerAnswerForm
                       ownerUsername={ownerUsername}
                       postId={post.id}
                       sectionId={section.id}
                       onUpdated={onUpdated}
                     />
-                  ) : asker ? (
+                  ) : section.askedBy ? (
                     <p className="mt-2 text-sm text-[var(--color-muted)]">Waiting for an answer.</p>
                   ) : null}
                 </section>
@@ -122,21 +134,26 @@ type OwnerAnswerFormProps = {
   ownerUsername: string
   postId: string
   sectionId: string
-  onUpdated: (journal: Journal) => void
+  onUpdated: () => void
 }
 
 function OwnerAnswerForm({ ownerUsername, postId, sectionId, onUpdated }: OwnerAnswerFormProps) {
   const [answer, setAnswer] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    setIsSubmitting(true)
     try {
-      onUpdated(answerPostQuestion(ownerUsername, postId, sectionId, answer))
+      await answerPostQuestion(ownerUsername, postId, sectionId, answer)
+      onUpdated()
       setAnswer('')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save that answer.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -147,6 +164,7 @@ function OwnerAnswerForm({ ownerUsername, postId, sectionId, onUpdated }: OwnerA
         value={answer}
         onChange={(event) => setAnswer(event.target.value)}
         placeholder="Write the answer."
+        disabled={isSubmitting}
       />
       {error ? (
         <p className="text-sm text-rose-700" role="alert">
@@ -155,9 +173,10 @@ function OwnerAnswerForm({ ownerUsername, postId, sectionId, onUpdated }: OwnerA
       ) : null}
       <button
         type="submit"
-        className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+        disabled={isSubmitting}
+        className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
       >
-        Save answer
+        {isSubmitting ? 'Saving...' : 'Save answer'}
       </button>
     </form>
   )

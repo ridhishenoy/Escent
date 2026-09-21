@@ -1,4 +1,4 @@
-const SOCIAL_KEY = 'escent.social'
+import { supabase } from './supabase'
 
 export type RequestStatus = 'pending' | 'accepted' | 'declined'
 
@@ -12,160 +12,119 @@ export type FollowRequest = {
 
 export type FollowRelation = 'self' | 'none' | 'pending_out' | 'pending_in' | 'following'
 
-type SocialState = {
-  requests: FollowRequest[]
+export async function getProfileId(username: string): Promise<string | null> {
+  const { data } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle()
+  return data?.id || null
 }
 
-function readSocial(): SocialState {
-  const raw = localStorage.getItem(SOCIAL_KEY)
-  if (!raw) {
-    return { requests: [] }
-  }
+export async function findPair(fromUsername: string, toUsername: string): Promise<FollowRequest | undefined> {
+  const followerId = await getProfileId(fromUsername)
+  const followingId = await getProfileId(toUsername)
+  if (!followerId || !followingId) return undefined
 
-  try {
-    const parsed = JSON.parse(raw) as SocialState
-    return { requests: Array.isArray(parsed.requests) ? parsed.requests : [] }
-  } catch {
-    return { requests: [] }
+  const { data, error } = await supabase
+    .from('follows')
+    .select('id, status, created_at')
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+    .maybeSingle()
+
+  if (error || !data) return undefined
+
+  return {
+    id: data.id,
+    from: fromUsername,
+    to: toUsername,
+    status: data.status as RequestStatus,
+    createdAt: data.created_at,
   }
 }
 
-function writeSocial(state: SocialState): void {
-  localStorage.setItem(SOCIAL_KEY, JSON.stringify(state))
-}
+export async function getFollowRelation(viewer: string, target: string): Promise<FollowRelation> {
+  if (viewer === target) return 'self'
 
-function createId(): string {
-  return crypto.randomUUID()
-}
+  const outgoing = await findPair(viewer, target)
+  if (outgoing?.status === 'accepted') return 'following'
+  if (outgoing?.status === 'pending') return 'pending_out'
 
-export function listRequests(): FollowRequest[] {
-  return readSocial().requests
-}
-
-function upsertRequest(next: FollowRequest): FollowRequest {
-  const state = readSocial()
-  const index = state.requests.findIndex((request) => request.id === next.id)
-  if (index >= 0) {
-    state.requests[index] = next
-  } else {
-    state.requests.push(next)
-  }
-  writeSocial(state)
-  return next
-}
-
-export function findPair(from: string, to: string): FollowRequest | undefined {
-  return readSocial().requests.find((request) => request.from === from && request.to === to)
-}
-
-export function getFollowRelation(viewer: string, target: string): FollowRelation {
-  if (viewer === target) {
-    return 'self'
-  }
-
-  const outgoing = findPair(viewer, target)
-  if (outgoing?.status === 'accepted') {
-    return 'following'
-  }
-  if (outgoing?.status === 'pending') {
-    return 'pending_out'
-  }
-
-  const incoming = findPair(target, viewer)
-  if (incoming?.status === 'pending') {
-    return 'pending_in'
-  }
+  const incoming = await findPair(target, viewer)
+  if (incoming?.status === 'pending') return 'pending_in'
 
   return 'none'
 }
 
-export function getFollowing(username: string): string[] {
-  return readSocial()
-    .requests.filter((request) => request.from === username && request.status === 'accepted')
-    .map((request) => request.to)
+export async function getFollowing(username: string): Promise<string[]> {
+  const followerId = await getProfileId(username)
+  if (!followerId) return []
+
+  const { data, error } = await supabase
+    .from('follows')
+    .select('following_id, profiles!follows_following_id_fkey(username)')
+    .eq('follower_id', followerId)
+    .eq('status', 'accepted')
+
+  if (error || !data) return []
+  return data.map((row: any) => row.profiles?.username).filter(Boolean)
 }
 
-export function getIncomingRequests(username: string): FollowRequest[] {
-  return readSocial().requests.filter((request) => request.to === username && request.status === 'pending')
+export async function getIncomingRequests(username: string): Promise<FollowRequest[]> {
+  const followingId = await getProfileId(username)
+  if (!followingId) return []
+
+  const { data, error } = await supabase
+    .from('follows')
+    .select('id, status, created_at, profiles!follows_follower_id_fkey(username)')
+    .eq('following_id', followingId)
+    .eq('status', 'pending')
+
+  if (error || !data) return []
+  return data.map((row: any) => ({
+    id: row.id,
+    from: row.profiles?.username,
+    to: username,
+    status: row.status as RequestStatus,
+    createdAt: row.created_at,
+  }))
 }
 
-export function sendFollowRequest(from: string, to: string, autoAccept = false): FollowRequest {
-  if (from === to) {
-    throw new Error('You already have you.')
-  }
+export async function sendFollowRequest(fromUsername: string, toUsername: string, autoAccept = false): Promise<void> {
+  if (fromUsername === toUsername) throw new Error('You already have you.')
 
-  const existing = findPair(from, to)
-  if (existing?.status === 'accepted') {
-    return existing
-  }
-  if (existing?.status === 'pending') {
-    return existing
-  }
+  const followerId = await getProfileId(fromUsername)
+  const followingId = await getProfileId(toUsername)
+  if (!followerId || !followingId) throw new Error('User not found.')
 
-  const request: FollowRequest = existing
-    ? { ...existing, status: autoAccept ? 'accepted' : 'pending', createdAt: new Date().toISOString() }
-    : {
-        id: createId(),
-        from,
-        to,
-        status: autoAccept ? 'accepted' : 'pending',
-        createdAt: new Date().toISOString(),
-      }
-
-  return upsertRequest(request)
-}
-
-export function cancelFollowRequest(from: string, to: string): void {
-  const existing = findPair(from, to)
-  if (!existing || existing.status === 'accepted') {
-    return
-  }
-
-  const state = readSocial()
-  state.requests = state.requests.filter((request) => request.id !== existing.id)
-  writeSocial(state)
-}
-
-export function unfollow(from: string, to: string): void {
-  const existing = findPair(from, to)
-  if (!existing) {
-    return
-  }
-
-  const state = readSocial()
-  state.requests = state.requests.filter((request) => request.id !== existing.id)
-  writeSocial(state)
-}
-
-export function acceptFollowRequest(id: string): FollowRequest | null {
-  const state = readSocial()
-  const request = state.requests.find((item) => item.id === id)
-  if (!request) {
-    return null
-  }
-  request.status = 'accepted'
-  writeSocial(state)
-  return request
-}
-
-export function declineFollowRequest(id: string): void {
-  const state = readSocial()
-  const request = state.requests.find((item) => item.id === id)
-  if (!request) {
-    return
-  }
-  request.status = 'declined'
-  writeSocial(state)
-}
-
-export function ensureAcceptedFollow(from: string, to: string): void {
-  sendFollowRequest(from, to, true)
-}
-
-export function ensurePendingFollow(from: string, to: string): void {
-  const existing = findPair(from, to)
+  const existing = await findPair(fromUsername, toUsername)
   if (existing) {
+    if (existing.status !== (autoAccept ? 'accepted' : 'pending')) {
+      await supabase.from('follows').update({ status: autoAccept ? 'accepted' : 'pending' }).eq('id', existing.id)
+    }
     return
   }
-  sendFollowRequest(from, to, false)
+
+  await supabase.from('follows').insert({
+    follower_id: followerId,
+    following_id: followingId,
+    status: autoAccept ? 'accepted' : 'pending'
+  })
+}
+
+export async function cancelFollowRequest(fromUsername: string, toUsername: string): Promise<void> {
+  const existing = await findPair(fromUsername, toUsername)
+  if (!existing || existing.status === 'accepted') return
+  await supabase.from('follows').delete().eq('id', existing.id)
+}
+
+export async function unfollow(fromUsername: string, toUsername: string): Promise<void> {
+  const existing = await findPair(fromUsername, toUsername)
+  if (!existing) return
+  await supabase.from('follows').delete().eq('id', existing.id)
+}
+
+export async function acceptFollowRequest(id: string): Promise<void> {
+  await supabase.from('follows').update({ status: 'accepted' }).eq('id', id)
+}
+
+export async function declineFollowRequest(id: string): Promise<void> {
+  await supabase.from('follows').delete().eq('id', id)
 }

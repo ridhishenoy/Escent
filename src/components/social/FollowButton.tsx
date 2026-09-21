@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { cancelFollowRequest, getFollowRelation, sendFollowRequest, unfollow, type FollowRelation } from '../../lib/social'
 
 type FollowButtonProps = {
@@ -17,45 +18,47 @@ function actionLabel(relation: FollowRelation): string {
       return 'Requested'
     case 'following':
       return 'Following'
-    default: {
-      const unexpected: never = relation
-      return unexpected
-    }
+    default:
+      return ''
   }
 }
 
 export default function FollowButton({ viewer, target, onChange }: FollowButtonProps) {
-  const relation = getFollowRelation(viewer, target)
+  const { data: relation, refetch, isLoading } = useQuery({
+    queryKey: ['relation', viewer, target],
+    queryFn: () => getFollowRelation(viewer, target),
+    enabled: Boolean(viewer && target),
+  })
 
-  if (relation === 'self') {
+  if (!relation || relation === 'self') {
     return null
   }
 
-  function handlePrimary() {
+  async function handlePrimary() {
     switch (relation) {
       case 'none':
       case 'pending_in':
-        sendFollowRequest(viewer, target, false)
+        await sendFollowRequest(viewer, target, false)
         break
       case 'pending_out':
-        cancelFollowRequest(viewer, target)
+        await cancelFollowRequest(viewer, target)
         break
       case 'following':
-        unfollow(viewer, target)
+        await unfollow(viewer, target)
         break
       case 'self':
         break
-      default: {
-        const unexpected: never = relation
-        return unexpected
-      }
+      default:
+        break
     }
+    await refetch()
     onChange?.()
   }
 
   return (
     <button
       type="button"
+      disabled={isLoading}
       onClick={handlePrimary}
       className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
         relation === 'none' || relation === 'pending_in'
@@ -63,7 +66,7 @@ export default function FollowButton({ viewer, target, onChange }: FollowButtonP
           : 'border border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]'
       }`}
     >
-      {actionLabel(relation)}
+      {isLoading ? '...' : actionLabel(relation)}
     </button>
   )
 }

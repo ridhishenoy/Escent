@@ -17,13 +17,17 @@ export const useAuth = create<AuthState>()(
       username: null,
       avatarUrl: null,
       displayName: null,
-      signIn: (username) => {
-        const profile = getProfile(username)
-        set({
-          username,
-          avatarUrl: profile.avatarDataUrl,
-          displayName: profile.displayName,
-        })
+      signIn: async (username) => {
+        set({ username }) // Optimistically set username
+        try {
+          const profile = await getProfile(username)
+          set({
+            avatarUrl: profile.avatarDataUrl,
+            displayName: profile.displayName,
+          })
+        } catch (error) {
+          console.error('Failed to fetch profile', error)
+        }
       },
       updateProfile: (patch) =>
         set((state) => ({

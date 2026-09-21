@@ -12,7 +12,7 @@ import PostCard from './PostCard'
 type PostComposerProps = {
   subjects: Subject[]
   defaultSubjectId: string | null
-  onPublish: (post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>) => void
+  onPublish: (post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>) => void | Promise<void>
 }
 
 const inputClass =
@@ -29,6 +29,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
   const [sections, setSections] = useState<PostSection[]>([emptySection()])
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (defaultSubjectId) {
@@ -77,11 +78,12 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
     }
   }
 
-  function handlePublish(event: FormEvent<HTMLFormElement>) {
+  async function handlePublish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    setIsSubmitting(true)
     try {
-      onPublish({
+      await onPublish({
         subjectId: activeSubjectId,
         title: title.trim(),
         sections,
@@ -92,6 +94,8 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
       setImageDataUrl(null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not publish that post.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -117,6 +121,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
             className={inputClass}
             value={activeSubjectId}
             onChange={(event) => setSubjectId(event.target.value)}
+            disabled={isSubmitting}
           >
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>
@@ -133,6 +138,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="What did you study?"
+            disabled={isSubmitting}
           />
         </label>
 
@@ -141,8 +147,9 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
             <p className="text-sm font-medium">Questions & answers</p>
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => setSections((current) => [...current, emptySection()])}
-              className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-primary)] hover:opacity-80"
+              className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 disabled:opacity-50"
             >
               <Plus size={16} />
               Add question
@@ -158,8 +165,9 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
                 {sections.length > 1 ? (
                   <button
                     type="button"
+                    disabled={isSubmitting}
                     onClick={() => removeSection(section.id)}
-                    className="rounded-md p-1 text-[var(--color-muted)] hover:text-rose-700"
+                    className="rounded-md p-1 text-[var(--color-muted)] hover:text-rose-700 disabled:opacity-50"
                     aria-label={`Remove question ${index + 1}`}
                   >
                     <Trash2 size={14} />
@@ -173,6 +181,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
                   value={section.question}
                   onChange={(event) => updateSection(section.id, { question: event.target.value })}
                   placeholder="What were you trying to figure out?"
+                  disabled={isSubmitting}
                 />
               </label>
               <label className="block text-sm font-medium">
@@ -182,6 +191,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
                   value={section.answer}
                   onChange={(event) => updateSection(section.id, { answer: event.target.value })}
                   placeholder="Write the answer, the proof, or the aha."
+                  disabled={isSubmitting}
                 />
               </label>
             </div>
@@ -191,18 +201,19 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={() => imageRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm font-medium hover:border-[var(--color-primary)]"
+            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm font-medium hover:border-[var(--color-primary)] disabled:opacity-50"
           >
             <ImagePlus size={16} />
             {imageDataUrl ? 'Change photo' : 'Add photo'}
           </button>
           {imageDataUrl ? (
-            <button type="button" onClick={() => setImageDataUrl(null)} className="text-sm text-[var(--color-muted)]">
+            <button type="button" disabled={isSubmitting} onClick={() => setImageDataUrl(null)} className="text-sm text-[var(--color-muted)] disabled:opacity-50">
               Remove photo
             </button>
           ) : null}
-          <input ref={imageRef} type="file" accept="image/*" className="sr-only" onChange={handleImage} />
+          <input ref={imageRef} type="file" accept="image/*" className="sr-only" onChange={handleImage} disabled={isSubmitting} />
         </div>
 
         {error ? (
@@ -213,9 +224,10 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
 
         <button
           type="submit"
-          className="w-full rounded-md bg-[var(--color-primary)] py-2.5 font-semibold text-white hover:opacity-90"
+          disabled={isSubmitting}
+          className="w-full rounded-md bg-[var(--color-primary)] py-2.5 font-semibold text-white hover:opacity-90 disabled:opacity-50"
         >
-          Publish
+          {isSubmitting ? 'Publishing...' : 'Publish'}
         </button>
       </form>
 
