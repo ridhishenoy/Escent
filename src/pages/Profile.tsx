@@ -50,6 +50,8 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null)
   const [photoError, setPhotoError] = useState('')
 
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+
   const { data: profile, refetch: refetchProfile, isLoading: isProfileLoading } = useQuery({
     queryKey: ['profile', username],
     queryFn: () => getProfile(username),
@@ -145,27 +147,42 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
           <AvatarUploader
             name={profile.displayName}
             src={profile.avatarDataUrl}
-            editable={isOwner}
+            editable={isOwner && isEditingProfile}
             onUpload={handleAvatar}
           />
           <div className="flex-1 text-center sm:text-left w-full">
             {isOwner ? (
-              <>
-                <p className="text-sm font-medium text-[var(--color-primary)] mb-2">Profile setup</p>
-                <label className="block text-sm font-medium mb-3">
-                  Display name
-                  <input
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    onBlur={handleDisplayNameBlur}
-                    className="mt-1 w-full max-w-md rounded-md border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
-                  />
-                </label>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Your learning space</h1>
-                <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)]">
-                  Upload a picture, add a subject, and post what you’re learning — styled however you want.
-                </p>
-              </>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex-1">
+                  {isEditingProfile ? (
+                    <input
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      onBlur={handleDisplayNameBlur}
+                      placeholder="Display name"
+                      className="w-full max-w-md text-2xl sm:text-3xl font-extrabold tracking-tight bg-transparent border-b-2 border-dashed border-[var(--color-border)] focus:border-solid focus:border-[var(--color-primary)] outline-none py-1 mb-2"
+                      autoFocus
+                    />
+                  ) : (
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">
+                      {profile.displayName}
+                    </h1>
+                  )}
+                  <p className="text-[var(--color-muted)] mb-6">@{username}</p>
+                  
+                  <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">Your learning space</h2>
+                  <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)]">
+                    Upload a picture, add a subject, and post what you’re learning — styled however you want.
+                  </p>
+                </div>
+                
+                <button
+                  onClick={() => setIsEditingProfile(!isEditingProfile)}
+                  className="self-center sm:self-start px-4 py-2 text-sm font-semibold rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)] hover:opacity-80 transition-opacity"
+                >
+                  {isEditingProfile ? 'Save Profile' : 'Edit Profile'}
+                </button>
+              </div>
             ) : (
               <>
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{profile.displayName}</h1>
