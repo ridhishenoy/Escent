@@ -1,3 +1,4 @@
+import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AuthError, authenticateUser, registerUser } from '../lib/accounts'
@@ -15,6 +16,7 @@ export default function Auth() {
 
   const [username, setUsernameField] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -27,6 +29,7 @@ export default function Auth() {
   useEffect(() => {
     setError('')
     setPassword('')
+    setShowPassword(false)
   }, [isSignup])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -85,16 +88,26 @@ export default function Auth() {
 
         <label className="block text-left text-sm font-medium">
           Password
-          <input
-            className={inputClassName}
-            type="password"
-            name="password"
-            autoComplete={isSignup ? 'new-password' : 'current-password'}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            minLength={isSignup ? 6 : undefined}
-            required
-          />
+          <div className="relative mt-1">
+            <input
+              className={`${inputClassName} pr-10`}
+              type={showPassword ? 'text' : 'password'}
+              name="password"
+              autoComplete={isSignup ? 'new-password' : 'current-password'}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={isSignup ? 6 : undefined}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
         </label>
 
         {error ? (
