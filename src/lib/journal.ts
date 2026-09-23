@@ -25,6 +25,7 @@ export type PostComment = {
   authorUsername: string
   body: string
   createdAt: string
+  parentId?: string | null
 }
 
 export type JournalPost = {
@@ -34,6 +35,7 @@ export type JournalPost = {
   sections: PostSection[]
   comments: PostComment[]
   imageDataUrl: string | null
+  imageUrls: string[]
   createdAt: string
 }
 
@@ -123,7 +125,8 @@ export async function getJournal(username: string): Promise<Journal> {
       id: c.id,
       authorUsername: c.profiles.username,
       body: c.body,
-      createdAt: c.created_at
+      createdAt: c.created_at,
+      parentId: c.parent_id || null,
     }))
 
     return {
@@ -131,6 +134,7 @@ export async function getJournal(username: string): Promise<Journal> {
       subjectId: post.subject_id,
       title: post.title,
       imageDataUrl: post.image_url,
+      imageUrls: post.image_urls || (post.image_url ? [post.image_url] : []),
       createdAt: post.created_at,
       sections: postSections,
       comments: postComments
@@ -174,8 +178,8 @@ export async function addPost(username: string, post: Omit<JournalPost, 'id' | '
     }))
     .filter((section) => section.question || section.answer)
 
-  if (!post.title.trim() && sections.length === 0 && !post.imageDataUrl) {
-    throw new Error('Add a title or at least one question and answer.')
+  if (!post.title.trim() && sections.length === 0 && !post.imageDataUrl && (!post.imageUrls || post.imageUrls.length === 0)) {
+    throw new Error('Add a title, a question, or an image.')
   }
 
   const { data: insertedPost, error } = await supabase.from('posts').insert({
@@ -183,6 +187,7 @@ export async function addPost(username: string, post: Omit<JournalPost, 'id' | '
     subject_id: post.subjectId,
     title: post.title,
     image_url: post.imageDataUrl,
+    image_urls: post.imageUrls,
   }).select('id').single()
 
   if (error || !insertedPost) throw new Error('Could not create post.')
@@ -221,7 +226,7 @@ export async function answerPostQuestion(_ownerUsername: string, _postId: string
   await supabase.from('post_sections').update({ answer: trimmed }).eq('id', sectionId)
 }
 
-export async function addCommentToPost(_ownerUsername: string, postId: string, authorUsername: string, body: string): Promise<void> {
+export async function addCommentToPost(_ownerUsername: string, postId: string, authorUsername: string, body: string, parentId?: string | null): Promise<void> {
   const trimmed = body.trim()
   if (!trimmed) throw new Error('Write a comment first.')
 
@@ -232,6 +237,7 @@ export async function addCommentToPost(_ownerUsername: string, postId: string, a
     post_id: postId,
     author_id: authorId,
     body: trimmed,
+    parent_id: parentId || null
   })
 }
 

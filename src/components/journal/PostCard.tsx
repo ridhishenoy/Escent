@@ -1,10 +1,48 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
-import { Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { answerPostQuestion, getProfile, type JournalPost, type Subject } from '../../lib/journal'
 import PostDiscussion from './PostDiscussion'
+
+function ImageCarousel({ urls }: { urls: string[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  return (
+    <div className="relative w-full group">
+      <img src={urls[currentIndex]} alt="" className="w-full max-h-56 sm:max-h-80 object-cover" />
+      
+      {currentIndex > 0 && (
+        <button
+          type="button"
+          onClick={() => setCurrentIndex(i => i - 1)}
+          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <ChevronLeft size={20} />
+        </button>
+      )}
+      
+      {currentIndex < urls.length - 1 && (
+        <button
+          type="button"
+          onClick={() => setCurrentIndex(i => i + 1)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <ChevronRight size={20} />
+        </button>
+      )}
+
+      {urls.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 shadow-sm">
+          {urls.map((_, i) => (
+            <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 type PostCardProps = {
   post: JournalPost
@@ -47,7 +85,9 @@ export default function PostCard({
 
   return (
     <article className="rounded-2xl border border-[var(--color-border)] bg-white overflow-hidden shadow-sm h-full flex flex-col">
-      {post.imageDataUrl ? (
+      {post.imageUrls && post.imageUrls.length > 0 ? (
+        <ImageCarousel urls={post.imageUrls} />
+      ) : post.imageDataUrl ? (
         <img src={post.imageDataUrl} alt="" className="w-full max-h-56 sm:max-h-80 object-cover" />
       ) : null}
       <div className="p-4 sm:p-5 space-y-3 sm:space-y-4 flex-1 flex flex-col">

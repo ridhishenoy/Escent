@@ -33,6 +33,7 @@ create table public.posts (
   subject_id uuid references public.subjects(id) on delete cascade not null,
   title text not null,
   image_url text,
+  image_urls text[],
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 alter table public.posts enable row level security;
@@ -64,6 +65,7 @@ create table public.post_comments (
   id uuid default gen_random_uuid() primary key,
   post_id uuid references public.posts(id) on delete cascade not null,
   author_id uuid references public.profiles(id) on delete cascade not null,
+  parent_id uuid references public.post_comments(id) on delete cascade,
   body text not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

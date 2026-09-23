@@ -9,6 +9,7 @@ import {
   getProfile,
   removePostComment,
   type JournalPost,
+  type PostComment,
 } from '../../lib/journal'
 
 type DiscussionMode = 'idle' | 'question' | 'comment'
@@ -33,24 +34,17 @@ function CommentAuthor({ username }: { username: string }) {
   if (!author) return <span className="block h-7 w-7 rounded-full bg-[var(--color-primary-soft)]" />
 
   return (
-    <>
-      <Link to={`/${author.username}`} className="shrink-0">
-        {author.avatarDataUrl ? (
-          <img
-            src={author.avatarDataUrl}
-            alt=""
-            className="h-7 w-7 rounded-full object-cover border border-[var(--color-border)]"
-          />
-        ) : (
-          <span className="block h-7 w-7 rounded-full bg-[var(--color-primary-soft)]" />
-        )}
-      </Link>
-      <div className="flex items-start justify-between gap-2">
-        <Link to={`/${author.username}`} className="font-semibold hover:text-[var(--color-primary)]">
-          {author.displayName}
-        </Link>
-      </div>
-    </>
+    <Link to={`/${author.username}`} className="shrink-0">
+      {author.avatarDataUrl ? (
+        <img
+          src={author.avatarDataUrl}
+          alt=""
+          className="h-7 w-7 rounded-full object-cover border border-[var(--color-border)]"
+        />
+      ) : (
+        <span className="block h-7 w-7 rounded-full bg-[var(--color-primary-soft)]" />
+      )}
+    </Link>
   )
 }
 
@@ -58,6 +52,7 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
   const [mode, setMode] = useState<DiscussionMode>('idle')
   const [question, setQuestion] = useState('')
   const [comment, setComment] = useState('')
+  const [replyingTo, setReplyingTo] = useState<{ id: string, username: string } | null>(null)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -95,9 +90,10 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
     setError('')
     setIsSubmitting(true)
     try {
-      await addCommentToPost(ownerUsername, post.id, viewerUsername, comment)
+      await addCommentToPost(ownerUsername, post.id, viewerUsername, comment, replyingTo?.id)
       onUpdated()
       setComment('')
+      setReplyingTo(null)
       setMode('idle')
     } catch (caught) {
       handleError(caught)
@@ -121,7 +117,13 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
 
   function toggleMode(next: DiscussionMode) {
     setError('')
-    setMode((current) => (current === next ? 'idle' : next))
+    if (current => current === next) {
+      setMode('idle')
+      setReplyingTo(null)
+    } else {
+      setMode(next)
+      if (next !== 'comment') setReplyingTo(null)
+    }
   }
 
   let composer: ReactNode = null
@@ -155,6 +157,12 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
     case 'comment':
       composer = (
         <form onSubmit={submitComment} className="space-y-2">
+          {replyingTo && (
+            <div className="flex items-center justify-between text-xs text-[var(--color-muted)] bg-[var(--color-background)] px-2 py-1 rounded border border-[var(--color-border)]">
+              <span>Replying to @{replyingTo.username}</span>
+              <button type="button" onClick={() => setReplyingTo(null)} className="hover:text-[var(--color-foreground)] font-medium">Cancel</button>
+            </div>
+          )}
           <label className="block text-sm font-medium">
             Comment
             <textarea
@@ -163,6 +171,7 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
               onChange={(event) => setComment(event.target.value)}
               placeholder="Add a thought, a correction, or a hi."
               disabled={isSubmitting}
+              autoFocus={Boolean(replyingTo)}
             />
           </label>
           <button
@@ -180,6 +189,71 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
       composer = unexpected
       break
     }
+  }
+
+  const topLevelComments = post.comments.filter(c => !c.parentId)
+  const repliesByParentId = post.comments.reduce((acc, c) => {
+    if (c.parentId) {
+      if (!acc[c.parentId]) acc[c.parentId] = []
+      acc[c.parentId].push(c)
+    }
+    return acc
+  }, {} as Record<string, PostComment[]>)
+
+  function renderCommentItem(item: PostComment, depth: number = 0) {
+    const canDelete = viewerUsername === ownerUsername || viewerUsername === item.authorUsername
+    const replies = repliesByParentId[item.id] || []
+
+    return (
+      <li key={item.id} className="space-y-3">
+        <div className="flex gap-2">
+          <CommentAuthor username={item.authorUsername} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm leading-snug">
+                <Link to={`/${item.authorUsername}`} className="font-semibold mr-1.5 hover:text-[var(--color-primary)]">
+                  {item.authorUsername}
+                </Link>
+                <span className="whitespace-pre-wrap">{item.body}</span>
+              </p>
+              {canDelete ? (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteComment(item.id)}
+                  className="rounded-md p-1 text-[var(--color-muted)] hover:text-rose-700"
+                  aria-label="Delete comment"
+                >
+                  <Trash2 size={12} />
+                </button>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-3 mt-0.5">
+              <p className="text-[11px] text-[var(--color-muted)]">
+                {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+              </p>
+              {canWrite && depth === 0 && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setMode('comment')
+                    setReplyingTo({ id: item.id, username: item.authorUsername })
+                  }}
+                  className="text-[11px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                >
+                  Reply
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {replies.length > 0 && (
+          <ul className="pl-9 space-y-3">
+            {replies.map(reply => renderCommentItem(reply, depth + 1))}
+          </ul>
+        )}
+      </li>
+    )
   }
 
   return (
@@ -227,34 +301,7 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
 
       {post.comments.length > 0 ? (
         <ul className="space-y-3">
-          {post.comments.map((item) => {
-            const canDelete = viewerUsername === ownerUsername || viewerUsername === item.authorUsername
-            return (
-              <li key={item.id} className="flex gap-2">
-                <CommentAuthor username={item.authorUsername} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm leading-snug">
-                      <span className="whitespace-pre-wrap">{item.body}</span>
-                    </p>
-                    {canDelete ? (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteComment(item.id)}
-                        className="rounded-md p-1 text-[var(--color-muted)] hover:text-rose-700"
-                        aria-label="Delete comment"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    ) : null}
-                  </div>
-                  <p className="text-[11px] text-[var(--color-muted)]">
-                    {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
-                  </p>
-                </div>
-              </li>
-            )
-          })}
+          {topLevelComments.map(item => renderCommentItem(item, 0))}
         </ul>
       ) : null}
     </div>

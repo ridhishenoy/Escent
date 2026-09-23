@@ -27,7 +27,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
   const [subjectId, setSubjectId] = useState(defaultSubjectId ?? subjects[0]?.id ?? '')
   const [title, setTitle] = useState('')
   const [sections, setSections] = useState<PostSection[]>([emptySection()])
-  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
+  const [imageUrls, setImageUrls] = useState<string[]>([])
   const [showPreview, setShowPreview] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -52,7 +52,8 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
     title,
     sections,
     comments: [],
-    imageDataUrl,
+    imageDataUrl: imageUrls[0] ?? null,
+    imageUrls,
     createdAt: new Date().toISOString(),
   }
 
@@ -65,18 +66,25 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
   }
 
   async function handleImage(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+    const files = event.target.files
     event.target.value = ''
-    if (!file) {
+    if (!files || files.length === 0) {
       return
     }
 
     try {
-      setImageDataUrl(await fileToCompressedDataUrl(file, 1200))
+      const newUrls = await Promise.all(
+        Array.from(files).map((file) => fileToCompressedDataUrl(file, 1200))
+      )
+      setImageUrls((current) => [...current, ...newUrls])
       setError('')
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not add that photo.')
+      setError(caught instanceof Error ? caught.message : 'Could not add photos.')
     }
+  }
+
+  function removeImage(index: number) {
+    setImageUrls((current) => current.filter((_, i) => i !== index))
   }
 
   async function handlePublish(event: FormEvent<HTMLFormElement>) {
@@ -88,11 +96,12 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
         subjectId: activeSubjectId,
         title: title.trim(),
         sections,
-        imageDataUrl,
+        imageDataUrl: imageUrls[0] ?? null,
+        imageUrls,
       })
       setTitle('')
       setSections([emptySection()])
-      setImageDataUrl(null)
+      setImageUrls([])
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not publish that post.')
     } finally {
@@ -199,22 +208,31 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            disabled={isSubmitting}
-            onClick={() => imageRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm font-medium hover:border-[var(--color-primary)] disabled:opacity-50"
-          >
-            <ImagePlus size={16} />
-            {imageDataUrl ? 'Change photo' : 'Add photo'}
-          </button>
-          {imageDataUrl ? (
-            <button type="button" disabled={isSubmitting} onClick={() => setImageDataUrl(null)} className="text-sm text-[var(--color-muted)] disabled:opacity-50">
-              Remove photo
+        <div className="space-y-3">
+          {imageUrls.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {imageUrls.map((url, i) => (
+                <div key={i} className="relative shrink-0">
+                  <img src={url} alt="" className="h-20 w-20 object-cover rounded-md border border-[var(--color-border)]" />
+                  <button type="button" onClick={() => removeImage(i)} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-[var(--color-border)] text-[var(--color-muted)] hover:text-rose-700">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => imageRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm font-medium hover:border-[var(--color-primary)] disabled:opacity-50"
+            >
+              <ImagePlus size={16} />
+              Add photos
             </button>
-          ) : null}
-          <input ref={imageRef} type="file" accept="image/*" className="sr-only" onChange={handleImage} disabled={isSubmitting} />
+            <input ref={imageRef} type="file" accept="image/*" multiple className="sr-only" onChange={handleImage} disabled={isSubmitting} />
+          </div>
         </div>
 
         {error ? (
