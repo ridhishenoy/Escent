@@ -1,5 +1,5 @@
 import { useRef, type ChangeEvent } from 'react'
-import { Camera } from 'lucide-react'
+import { Camera, Pencil } from 'lucide-react'
 
 type AvatarUploaderProps = {
   name: string
@@ -37,9 +37,9 @@ export default function AvatarUploader({ name, src, editable, onUpload }: Avatar
           </span>
         )}
         {editable ? (
-          <span className="absolute inset-x-0 bottom-0 bg-[var(--color-primary)]/85 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
-            {src ? 'Change' : 'Upload'}
-          </span>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 transition-colors hover:bg-black/50">
+            <Pencil className="text-white size-6 opacity-90" />
+          </div>
         ) : null}
       </button>
       {editable ? (
