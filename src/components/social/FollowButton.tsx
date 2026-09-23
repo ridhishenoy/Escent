@@ -60,7 +60,7 @@ export default function FollowButton({ viewer, target, onChange }: FollowButtonP
       type="button"
       disabled={isLoading}
       onClick={handlePrimary}
-      className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+      className={`rounded-md px-3 py-2 sm:py-1.5 text-sm font-semibold touch-manipulation ${
         relation === 'none' || relation === 'pending_in'
           ? 'bg-[var(--color-primary)] text-white hover:opacity-90'
           : 'border border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]'

@@ -40,7 +40,7 @@ export default function SubjectManager({
   return (
     <section>
       <div className="flex items-center justify-between gap-3 mb-3">
-        <h2 className="text-lg font-bold">Subjects</h2>
+        <h2 className="text-base sm:text-lg font-bold">Subjects</h2>
         {editable ? (
           <button
             type="button"
@@ -54,7 +54,7 @@ export default function SubjectManager({
       </div>
 
       {isOpen && editable ? (
-        <form onSubmit={handleAdd} className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-3">
+        <form onSubmit={handleAdd} className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-3">
           <label className="flex-1 min-w-40 text-sm font-medium">
             Subject
             <input
@@ -75,7 +75,7 @@ export default function SubjectManager({
           </label>
           <button
             type="submit"
-            className="h-10 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:opacity-90"
+            className="h-10 w-full sm:w-auto rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:opacity-90 touch-manipulation"
           >
             Add
           </button>

@@ -56,10 +56,10 @@ export default function People() {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl mx-auto">
+    <div className="space-y-6 sm:space-y-8 max-w-2xl mx-auto">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Find people</h1>
-        <p className="text-[var(--color-muted)] mt-1">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Find people</h1>
+        <p className="text-sm sm:text-base text-[var(--color-muted)] mt-1">
           Send a follow request. If they accept, their posts show up on your feed.
         </p>
       </div>
@@ -70,27 +70,27 @@ export default function People() {
           {incoming.map(({ req: request, profile: person }) => (
             <article
               key={request.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"
             >
               <Link to={`/${person.username}`} className="flex items-center gap-3 min-w-0">
                 {person.avatarDataUrl ? (
-                  <img src={person.avatarDataUrl} alt="" className="h-11 w-11 rounded-full object-cover" />
+                  <img src={person.avatarDataUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
                 ) : (
-                  <span className="h-11 w-11 rounded-full bg-[var(--color-primary-soft)]" />
+                  <span className="h-11 w-11 shrink-0 rounded-full bg-[var(--color-primary-soft)]" />
                 )}
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{person.displayName}</p>
                   <p className="text-sm text-[var(--color-muted)]">@{person.username} wants to follow you</p>
                 </div>
               </Link>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 sm:shrink-0">
                 <button
                   type="button"
                   onClick={async () => {
                     await acceptFollowRequest(request.id)
                     refresh()
                   }}
-                  className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+                  className="flex-1 sm:flex-none rounded-md bg-[var(--color-primary)] px-3 py-2.5 sm:py-1.5 text-sm font-semibold text-white hover:opacity-90 touch-manipulation"
                 >
                   Accept
                 </button>
@@ -100,7 +100,7 @@ export default function People() {
                     await declineFollowRequest(request.id)
                     refresh()
                   }}
-                  className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium"
+                  className="flex-1 sm:flex-none rounded-md border border-[var(--color-border)] px-3 py-2.5 sm:py-1.5 text-sm font-medium touch-manipulation"
                 >
                   Decline
                 </button>
@@ -129,20 +129,20 @@ export default function People() {
           people.map(({ person, relation }) => (
             <article
               key={person.username}
-              className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"
             >
               <Link to={`/${person.username}`} className="flex items-center gap-3 min-w-0">
                 {person.avatarDataUrl ? (
-                  <img src={person.avatarDataUrl} alt="" className="h-11 w-11 rounded-full object-cover" />
+                  <img src={person.avatarDataUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
                 ) : (
-                  <span className="h-11 w-11 rounded-full bg-[var(--color-primary-soft)]" />
+                  <span className="h-11 w-11 shrink-0 rounded-full bg-[var(--color-primary-soft)]" />
                 )}
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{person.displayName}</p>
                   <p className="text-sm text-[var(--color-muted)]">@{person.username}</p>
                 </div>
               </Link>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 sm:gap-1 sm:shrink-0">
                 <FollowButton viewer={username} target={person.username} onChange={refresh} />
                 {relation === 'following' ? (
                   <p className="text-xs text-[var(--color-muted)]">Their posts are on your feed</p>

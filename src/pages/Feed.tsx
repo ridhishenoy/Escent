@@ -34,20 +34,20 @@ export default function Feed() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Feed</h1>
-        <p className="text-[var(--color-muted)] mt-1">Findings from people you follow.</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Feed</h1>
+        <p className="text-sm sm:text-base text-[var(--color-muted)] mt-1">Findings from people you follow.</p>
       </div>
 
       {isLoading ? (
         <p className="text-[var(--color-muted)]">Loading feed...</p>
       ) : items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-6 text-[var(--color-muted)]">
+        <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-4 sm:p-6 text-sm sm:text-base text-[var(--color-muted)]">
           Your feed is quiet. Find people and send a follow request — once they accept, their posts land here.
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 items-stretch">
           {items.map(({ author, post, subject }) => (
             <div key={`${author.username}-${post.id}`} className="flex flex-col gap-2 min-w-0 h-full">
               <Link to={`/${author.username}`} className="flex items-center gap-3 px-1">

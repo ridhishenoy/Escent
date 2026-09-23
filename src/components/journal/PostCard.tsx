@@ -48,9 +48,9 @@ export default function PostCard({
   return (
     <article className="rounded-2xl border border-[var(--color-border)] bg-white overflow-hidden shadow-sm h-full flex flex-col">
       {post.imageDataUrl ? (
-        <img src={post.imageDataUrl} alt="" className="w-full max-h-80 object-cover" />
+        <img src={post.imageDataUrl} alt="" className="w-full max-h-56 sm:max-h-80 object-cover" />
       ) : null}
-      <div className="p-5 space-y-4 flex-1 flex flex-col">
+      <div className="p-4 sm:p-5 space-y-3 sm:space-y-4 flex-1 flex flex-col">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             {subject ? (
@@ -58,7 +58,7 @@ export default function PostCard({
                 {subject.name}
               </p>
             ) : null}
-            {post.title ? <h3 className="text-xl font-bold leading-tight">{post.title}</h3> : null}
+            {post.title ? <h3 className="text-lg sm:text-xl font-bold leading-tight">{post.title}</h3> : null}
           </div>
           {editable ? (
             <button
@@ -78,7 +78,7 @@ export default function PostCard({
               return (
                 <section
                   key={section.id}
-                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] p-4 text-left"
+                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] p-3 sm:p-4 text-left"
                 >
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)] mb-2">
                     Question {index + 1}

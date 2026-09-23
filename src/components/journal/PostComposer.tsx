@@ -28,6 +28,7 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
   const [title, setTitle] = useState('')
   const [sections, setSections] = useState<PostSection[]>([emptySection()])
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -101,17 +102,17 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
 
   if (subjects.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-6 text-center text-[var(--color-muted)]">
+      <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-4 sm:p-6 text-center text-sm sm:text-base text-[var(--color-muted)]">
         Add a subject above, then you can write a post.
       </p>
     )
   }
 
   return (
-    <section className="grid gap-6 lg:grid-cols-2">
+    <section className="grid gap-4 sm:gap-6 lg:grid-cols-2">
       <form
         onSubmit={handlePublish}
-        className="space-y-4 rounded-2xl border border-[var(--color-border)] bg-white p-5"
+        className="space-y-4 rounded-2xl border border-[var(--color-border)] bg-white p-4 sm:p-5"
       >
         <h2 className="text-lg font-bold">New post</h2>
 
@@ -223,15 +224,23 @@ export default function PostComposer({ subjects, defaultSubjectId, onPublish }: 
         ) : null}
 
         <button
+          type="button"
+          onClick={() => setShowPreview((visible) => !visible)}
+          className="w-full lg:hidden rounded-md border border-[var(--color-border)] py-2.5 text-sm font-medium hover:border-[var(--color-primary)] touch-manipulation"
+        >
+          {showPreview ? 'Hide preview' : 'Show preview'}
+        </button>
+
+        <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-md bg-[var(--color-primary)] py-2.5 font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-md bg-[var(--color-primary)] py-3 sm:py-2.5 font-semibold text-white hover:opacity-90 disabled:opacity-50 touch-manipulation"
         >
           {isSubmitting ? 'Publishing...' : 'Publish'}
         </button>
       </form>
 
-      <div>
+      <div className={showPreview ? 'block' : 'hidden lg:block'}>
         <p className="mb-3 text-sm font-medium text-[var(--color-muted)]">Live preview</p>
         <PostCard post={draft} subject={selectedSubject} editable={false} onDelete={() => undefined} />
       </div>

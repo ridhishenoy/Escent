@@ -63,9 +63,9 @@ export default function Auth() {
   const switchTo = isSignup ? '/auth' : '/auth?signup=true'
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border)]">
-      <h2 className="text-2xl font-bold mb-2 text-center">{title}</h2>
-      <p className="text-center text-[var(--color-muted)] mb-8">
+    <div className="max-w-md mx-auto mt-4 sm:mt-12 lg:mt-20 p-4 sm:p-6 bg-[var(--color-card)] rounded-xl shadow-sm border border-[var(--color-border)]">
+      <h2 className="text-xl sm:text-2xl font-bold mb-2 text-center">{title}</h2>
+      <p className="text-center text-sm sm:text-base text-[var(--color-muted)] mb-6 sm:mb-8">
         {isSignup
           ? 'Pick a username. Once someone has it, it’s theirs.'
           : 'Log in with your username and password.'}
@@ -119,7 +119,7 @@ export default function Auth() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full mt-2 bg-[var(--color-primary)] text-white font-semibold py-2.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-60"
+          className="w-full mt-2 bg-[var(--color-primary)] text-white font-semibold py-3 sm:py-2.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-60 touch-manipulation"
         >
           {isSubmitting ? 'Working…' : submitLabel}
         </button>

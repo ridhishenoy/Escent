@@ -139,8 +139,8 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
   }
 
   return (
-    <div className="space-y-10">
-      <section className="rounded-2xl border border-[var(--color-border)] bg-white p-6 sm:p-8">
+    <div className="space-y-6 sm:space-y-10">
+      <section className="rounded-2xl border border-[var(--color-border)] bg-white p-4 sm:p-6 lg:p-8">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
           <AvatarUploader
             name={profile.displayName}
@@ -161,14 +161,14 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                     className="mt-1 w-full max-w-md rounded-md border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-primary)]"
                   />
                 </label>
-                <h1 className="text-3xl font-extrabold tracking-tight">Your learning space</h1>
-                <p className="mt-2 text-[var(--color-muted)]">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Your learning space</h1>
+                <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)]">
                   Upload a picture, add a subject, and post what you’re learning — styled however you want.
                 </p>
               </>
             ) : (
               <>
-                <h1 className="text-3xl font-extrabold tracking-tight">{profile.displayName}</h1>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{profile.displayName}</h1>
                 <p className="text-[var(--color-muted)] mb-4">@{username}</p>
                 {currentUsername ? (
                   <FollowButton
@@ -208,11 +208,11 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
       <section className="space-y-4">
         <h2 className="text-lg font-bold">Journal</h2>
         {!canSeePosts ? (
-          <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-6 text-[var(--color-muted)]">
+          <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-4 sm:p-6 text-sm sm:text-base text-[var(--color-muted)]">
             Follow {profile.displayName} and wait for them to accept. Then their posts show here and on your feed.
           </p>
         ) : visiblePosts.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-6 text-[var(--color-muted)]">
+          <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-white p-4 sm:p-6 text-sm sm:text-base text-[var(--color-muted)]">
             {isOwner ? 'Your findings will show up here once you publish.' : 'No posts yet.'}
           </p>
         ) : (

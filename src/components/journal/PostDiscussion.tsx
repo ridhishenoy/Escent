@@ -185,11 +185,11 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
   return (
     <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
       {canWrite ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <button
             type="button"
             onClick={() => toggleMode('question')}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${
+            className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-2.5 sm:py-1.5 text-sm font-medium touch-manipulation ${
               mode === 'question'
                 ? 'border-[var(--color-primary)] bg-[var(--color-background)] text-[var(--color-primary)]'
                 : 'border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]'
@@ -201,7 +201,7 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
           <button
             type="button"
             onClick={() => toggleMode('comment')}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${
+            className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-2.5 sm:py-1.5 text-sm font-medium touch-manipulation ${
               mode === 'comment'
                 ? 'border-[var(--color-primary)] bg-[var(--color-background)] text-[var(--color-primary)]'
                 : 'border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]'
