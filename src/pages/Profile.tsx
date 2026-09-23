@@ -160,7 +160,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                       onChange={(event) => setDisplayName(event.target.value)}
                       onBlur={handleDisplayNameBlur}
                       placeholder="Display name"
-                      className="w-full max-w-md text-2xl sm:text-3xl font-extrabold tracking-tight bg-transparent border-b-2 border-dashed border-[var(--color-border)] focus:border-solid focus:border-[var(--color-primary)] outline-none py-1 mb-2"
+                      className="w-full max-w-md text-center sm:text-left text-2xl sm:text-3xl font-extrabold tracking-tight bg-transparent border-b-2 border-dashed border-[var(--color-border)] focus:border-solid focus:border-[var(--color-primary)] outline-none py-1 mb-2"
                       autoFocus
                     />
                   ) : (
