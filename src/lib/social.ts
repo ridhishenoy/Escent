@@ -1,130 +1,187 @@
-import { supabase } from './supabase'
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
 
-export type RequestStatus = 'pending' | 'accepted' | 'declined'
+export type RequestStatus = 'pending' | 'accepted' | 'declined';
 
 export type FollowRequest = {
-  id: string
-  from: string
-  to: string
-  status: RequestStatus
-  createdAt: string
-}
+  id: string;
+  from: string;
+  to: string;
+  status: RequestStatus;
+  createdAt: string;
+};
 
-export type FollowRelation = 'self' | 'none' | 'pending_out' | 'pending_in' | 'following'
+export type FollowRelation = 'self' | 'none' | 'pending_out' | 'pending_in' | 'following';
 
 export async function getProfileId(username: string): Promise<string | null> {
-  const { data } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle()
-  return data?.id || null
+  try {
+    const q = query(collection(db, 'profiles'), where('username', '==', username));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return snap.docs[0].id;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, 'profiles');
+  }
 }
 
 export async function findPair(fromUsername: string, toUsername: string): Promise<FollowRequest | undefined> {
-  const followerId = await getProfileId(fromUsername)
-  const followingId = await getProfileId(toUsername)
-  if (!followerId || !followingId) return undefined
+  try {
+    const q = query(
+      collection(db, 'follows'),
+      where('followerUsername', '==', fromUsername),
+      where('followingUsername', '==', toUsername)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return undefined;
 
-  const { data, error } = await supabase
-    .from('follows')
-    .select('id, status, created_at')
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId)
-    .maybeSingle()
-
-  if (error || !data) return undefined
-
-  return {
-    id: data.id,
-    from: fromUsername,
-    to: toUsername,
-    status: data.status as RequestStatus,
-    createdAt: data.created_at,
+    const data = snap.docs[0].data();
+    return {
+      id: snap.docs[0].id,
+      from: data.followerUsername,
+      to: data.followingUsername,
+      status: data.status as RequestStatus,
+      createdAt: data.createdAt,
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, 'follows');
   }
 }
 
 export async function getFollowRelation(viewer: string, target: string): Promise<FollowRelation> {
-  if (viewer === target) return 'self'
+  if (viewer === target) return 'self';
 
-  const outgoing = await findPair(viewer, target)
-  if (outgoing?.status === 'accepted') return 'following'
-  if (outgoing?.status === 'pending') return 'pending_out'
+  const outgoing = await findPair(viewer, target);
+  if (outgoing?.status === 'accepted') return 'following';
+  if (outgoing?.status === 'pending') return 'pending_out';
 
-  const incoming = await findPair(target, viewer)
-  if (incoming?.status === 'pending') return 'pending_in'
+  const incoming = await findPair(target, viewer);
+  if (incoming?.status === 'pending') return 'pending_in';
 
-  return 'none'
+  return 'none';
 }
 
 export async function getFollowing(username: string): Promise<string[]> {
-  const followerId = await getProfileId(username)
-  if (!followerId) return []
-
-  const { data, error } = await supabase
-    .from('follows')
-    .select('following_id, profiles!follows_following_id_fkey(username)')
-    .eq('follower_id', followerId)
-    .eq('status', 'accepted')
-
-  if (error || !data) return []
-  return data.map((row: any) => row.profiles?.username).filter(Boolean)
+  try {
+    const q = query(
+      collection(db, 'follows'),
+      where('followerUsername', '==', username),
+      where('status', '==', 'accepted')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => d.data().followingUsername).filter(Boolean);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'follows');
+  }
 }
 
 export async function getIncomingRequests(username: string): Promise<FollowRequest[]> {
-  const followingId = await getProfileId(username)
-  if (!followingId) return []
-
-  const { data, error } = await supabase
-    .from('follows')
-    .select('id, status, created_at, profiles!follows_follower_id_fkey(username)')
-    .eq('following_id', followingId)
-    .eq('status', 'pending')
-
-  if (error || !data) return []
-  return data.map((row: any) => ({
-    id: row.id,
-    from: row.profiles?.username,
-    to: username,
-    status: row.status as RequestStatus,
-    createdAt: row.created_at,
-  }))
+  try {
+    const q = query(
+      collection(db, 'follows'),
+      where('followingUsername', '==', username),
+      where('status', '==', 'pending')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        from: data.followerUsername,
+        to: username,
+        status: data.status as RequestStatus,
+        createdAt: data.createdAt,
+      };
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'follows');
+  }
 }
 
-export async function sendFollowRequest(fromUsername: string, toUsername: string, autoAccept = false): Promise<void> {
-  if (fromUsername === toUsername) throw new Error('You already have you.')
+export async function sendFollowRequest(
+  fromUsername: string,
+  toUsername: string,
+  autoAccept = false
+): Promise<void> {
+  if (fromUsername === toUsername) throw new Error('You already have you.');
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
 
-  const followerId = await getProfileId(fromUsername)
-  const followingId = await getProfileId(toUsername)
-  if (!followerId || !followingId) throw new Error('User not found.')
+  const followerId = user.uid;
+  const followingId = await getProfileId(toUsername);
+  if (!followingId) throw new Error('User not found.');
 
-  const existing = await findPair(fromUsername, toUsername)
-  if (existing) {
-    if (existing.status !== (autoAccept ? 'accepted' : 'pending')) {
-      await supabase.from('follows').update({ status: autoAccept ? 'accepted' : 'pending' }).eq('id', existing.id)
+  try {
+    const targetSnap = await getDoc(doc(db, 'profiles', followingId));
+    const isTargetPrivate = targetSnap.exists() ? Boolean(targetSnap.data()?.isPrivate) : false;
+    const isAuto = autoAccept || !isTargetPrivate;
+
+    const existing = await findPair(fromUsername, toUsername);
+    if (existing) {
+      if (existing.status !== (isAuto ? 'accepted' : 'pending')) {
+        await updateDoc(doc(db, 'follows', existing.id), {
+          status: isAuto ? 'accepted' : 'pending',
+        });
+      }
+      return;
     }
-    return
-  }
 
-  await supabase.from('follows').insert({
-    follower_id: followerId,
-    following_id: followingId,
-    status: autoAccept ? 'accepted' : 'pending'
-  })
+    const followRef = doc(collection(db, 'follows'));
+    await setDoc(followRef, {
+      id: followRef.id,
+      followerId,
+      followerUsername: fromUsername,
+      followingId,
+      followingUsername: toUsername,
+      status: isAuto ? 'accepted' : 'pending',
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, 'follows');
+  }
 }
 
 export async function cancelFollowRequest(fromUsername: string, toUsername: string): Promise<void> {
-  const existing = await findPair(fromUsername, toUsername)
-  if (!existing || existing.status === 'accepted') return
-  await supabase.from('follows').delete().eq('id', existing.id)
+  const existing = await findPair(fromUsername, toUsername);
+  if (!existing || existing.status === 'accepted') return;
+  try {
+    await deleteDoc(doc(db, 'follows', existing.id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `follows/${existing.id}`);
+  }
 }
 
 export async function unfollow(fromUsername: string, toUsername: string): Promise<void> {
-  const existing = await findPair(fromUsername, toUsername)
-  if (!existing) return
-  await supabase.from('follows').delete().eq('id', existing.id)
+  const existing = await findPair(fromUsername, toUsername);
+  if (!existing) return;
+  try {
+    await deleteDoc(doc(db, 'follows', existing.id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `follows/${existing.id}`);
+  }
 }
 
 export async function acceptFollowRequest(id: string): Promise<void> {
-  await supabase.from('follows').update({ status: 'accepted' }).eq('id', id)
+  try {
+    await updateDoc(doc(db, 'follows', id), { status: 'accepted' });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `follows/${id}`);
+  }
 }
 
 export async function declineFollowRequest(id: string): Promise<void> {
-  await supabase.from('follows').delete().eq('id', id)
+  try {
+    await deleteDoc(doc(db, 'follows', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `follows/${id}`);
+  }
 }

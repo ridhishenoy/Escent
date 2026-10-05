@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile in the application",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string", "maxLength": 50 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "avatarUrl": { "type": "string" },
+        "email": { "type": "string" },
+        "isPrivate": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "username", "displayName"]
+    },
+    "UsernameClaim": {
+      "title": "UsernameClaim",
+      "description": "Mapping from unique username to userId to prevent duplicates",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "maxLength": 50 },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["username", "userId"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Study or learning subject for organizing journal posts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string", "maxLength": 50 },
+        "name": { "type": "string", "maxLength": 100 },
+        "color": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "username", "name", "color"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A journal entry with questions, answers, and optional images",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string", "maxLength": 50 },
+        "subjectId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 300 },
+        "imageDataUrl": { "type": "string" },
+        "imageUrls": { "type": "array" },
+        "sections": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "username", "subjectId", "title"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment or reply on a journal post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorUsername": { "type": "string", "maxLength": 50 },
+        "body": { "type": "string", "maxLength": 2000 },
+        "parentId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "postId", "authorId", "authorUsername", "body"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "Follow relationship and follow requests between users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "followerId": { "type": "string" },
+        "followerUsername": { "type": "string", "maxLength": 50 },
+        "followingId": { "type": "string" },
+        "followingUsername": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "followerId", "followerUsername", "followingId", "followingUsername", "status"]
+    }
+  },
+  "firestore": {
+    "/profiles/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public user profile documents keyed by Firebase Auth UID"
+    },
+    "/usernames/{username}": {
+      "schema": { "$ref": "#/entities/UsernameClaim" },
+      "description": "Unique username registry documents"
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "User subjects for categorizing journal entries"
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Journal posts containing Q&A sections"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Comments on a journal post"
+    },
+    "/follows/{followId}": {
+      "schema": { "$ref": "#/entities/Follow" },
+      "description": "Follow relationships between users"
+    }
+  }
+}

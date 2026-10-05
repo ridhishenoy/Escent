@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getProfile } from '../lib/journal'
+import { auth } from '../lib/firebase'
+import { signOut } from 'firebase/auth'
 
 type AuthState = {
   username: string | null
   avatarUrl: string | null
   displayName: string | null
-  signIn: (username: string) => void
+  signIn: (username: string) => Promise<void>
   updateProfile: (patch: { avatarUrl?: string | null; displayName?: string }) => void
   logout: () => void
 }
@@ -18,7 +20,7 @@ export const useAuth = create<AuthState>()(
       avatarUrl: null,
       displayName: null,
       signIn: async (username) => {
-        set({ username }) // Optimistically set username
+        set({ username })
         try {
           const profile = await getProfile(username)
           set({
@@ -34,8 +36,11 @@ export const useAuth = create<AuthState>()(
           avatarUrl: patch.avatarUrl !== undefined ? patch.avatarUrl : state.avatarUrl,
           displayName: patch.displayName !== undefined ? patch.displayName : state.displayName,
         })),
-      logout: () => set({ username: null, avatarUrl: null, displayName: null }),
+      logout: () => {
+        signOut(auth).catch(() => {})
+        set({ username: null, avatarUrl: null, displayName: null })
+      },
     }),
-    { name: 'escent.session' },
+    { name: 'rika.session' },
   ),
 )

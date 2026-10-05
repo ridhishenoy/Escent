@@ -17,7 +17,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-3">
         <div className="flex items-center min-w-0">
           <Link to={username ? '/feed' : '/'} className="text-xl sm:text-2xl font-bold text-[var(--color-primary)]">
-            Escent
+            Rika
           </Link>
         </div>
         <nav className="flex items-center gap-2 sm:gap-4 shrink-0">

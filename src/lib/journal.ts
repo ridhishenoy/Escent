@@ -1,173 +1,262 @@
-import { supabase } from './supabase'
-import { getProfileId } from './social'
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
 
 export type UserProfile = {
-  username: string
-  displayName: string
-  avatarDataUrl: string | null
-}
+  username: string;
+  displayName: string;
+  avatarDataUrl: string | null;
+  email?: string | null;
+  isPrivate?: boolean;
+};
 
 export type Subject = {
-  id: string
-  name: string
-  color: string
-}
+  id: string;
+  name: string;
+  color: string;
+};
 
 export type PostSection = {
-  id: string
-  question: string
-  answer: string
-  askedBy: string | null
-}
+  id: string;
+  question: string;
+  answer: string;
+  askedBy: string | null;
+};
 
 export type PostComment = {
-  id: string
-  authorUsername: string
-  body: string
-  createdAt: string
-  parentId?: string | null
-}
+  id: string;
+  authorUsername: string;
+  body: string;
+  createdAt: string;
+  parentId?: string | null;
+};
 
 export type JournalPost = {
-  id: string
-  subjectId: string
-  title: string
-  sections: PostSection[]
-  comments: PostComment[]
-  imageDataUrl: string | null
-  imageUrls: string[]
-  createdAt: string
-}
+  id: string;
+  subjectId: string;
+  title: string;
+  sections: PostSection[];
+  comments: PostComment[];
+  imageDataUrl: string | null;
+  imageUrls: string[];
+  createdAt: string;
+};
 
 export type Journal = {
-  subjects: Subject[]
-  posts: JournalPost[]
-}
+  subjects: Subject[];
+  posts: JournalPost[];
+};
 
-export const SUBJECT_COLORS = ['#ec4899', '#db2777', '#f472b6', '#fb7185', '#c084fc', '#f43f5e', '#e11d48', '#9d174d']
+export const SUBJECT_COLORS = [
+  '#ec4899',
+  '#db2777',
+  '#f472b6',
+  '#fb7185',
+  '#c084fc',
+  '#f43f5e',
+  '#e11d48',
+  '#9d174d',
+];
 
 export function createEntryId(): string {
-  return crypto.randomUUID()
+  return crypto.randomUUID();
 }
 
 export async function getProfile(username: string): Promise<UserProfile> {
-  const { data } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
-  return {
-    username,
-    displayName: data?.display_name || username,
-    avatarDataUrl: data?.avatar_url || null,
+  try {
+    const q = query(collection(db, 'profiles'), where('username', '==', username));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      const data = snapshot.docs[0].data();
+      return {
+        username: data.username,
+        displayName: data.displayName || data.username,
+        avatarDataUrl: data.avatarUrl || null,
+        email: data.email || null,
+        isPrivate: Boolean(data.isPrivate),
+      };
+    }
+    return {
+      username,
+      displayName: username,
+      avatarDataUrl: null,
+      isPrivate: false,
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, 'profiles');
   }
 }
 
 export async function listProfiles(): Promise<UserProfile[]> {
-  const { data } = await supabase.from('profiles').select('*')
-  return (data || []).map(row => ({
-    username: row.username,
-    displayName: row.display_name || row.username,
-    avatarDataUrl: row.avatar_url || null,
-  }))
+  try {
+    const snapshot = await getDocs(collection(db, 'profiles'));
+    return snapshot.docs.map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        username: data.username,
+        displayName: data.displayName || data.username,
+        avatarDataUrl: data.avatarUrl || null,
+        email: data.email || null,
+        isPrivate: Boolean(data.isPrivate),
+      };
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'profiles');
+  }
 }
 
 export async function listJournalOwners(): Promise<string[]> {
-  const { data } = await supabase.from('posts').select('profiles!inner(username)')
-  const set = new Set((data || []).map((row: any) => row.profiles?.username).filter(Boolean))
-  return Array.from(set)
+  try {
+    const snapshot = await getDocs(collection(db, 'posts'));
+    const owners = new Set<string>();
+    snapshot.docs.forEach((d) => {
+      const uname = d.data().username;
+      if (uname) owners.add(uname);
+    });
+    return Array.from(owners);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'posts');
+  }
 }
 
 export async function listDiscoverablePeople(exclude?: string): Promise<UserProfile[]> {
-  const profiles = await listProfiles()
-  const filtered = exclude ? profiles.filter(p => p.username !== exclude) : profiles
-  return filtered.sort((left, right) => left.displayName.localeCompare(right.displayName))
+  const profiles = await listProfiles();
+  const filtered = exclude ? profiles.filter((p) => p.username !== exclude) : profiles;
+  return filtered.sort((left, right) => left.displayName.localeCompare(right.displayName));
 }
 
 export async function saveProfile(profile: UserProfile): Promise<UserProfile> {
-  const { data: user } = await supabase.auth.getUser()
-  if (!user.user) throw new Error('Not authenticated')
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
 
-  await supabase.from('profiles').update({
-    display_name: profile.displayName,
-    avatar_url: profile.avatarDataUrl,
-  }).eq('id', user.user.id)
-
-  return profile
+  try {
+    const userDocRef = doc(db, 'profiles', user.uid);
+    await updateDoc(userDocRef, {
+      displayName: profile.displayName,
+      avatarUrl: profile.avatarDataUrl,
+      isPrivate: Boolean(profile.isPrivate),
+    });
+    return profile;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `profiles/${user.uid}`);
+  }
 }
 
 export async function getJournal(username: string): Promise<Journal> {
-  const userId = await getProfileId(username)
-  if (!userId) return { subjects: [], posts: [] }
+  try {
+    // 1. Fetch subjects
+    const subjectsQuery = query(collection(db, 'subjects'), where('username', '==', username));
+    const subjectsSnap = await getDocs(subjectsQuery);
+    const subjects: Subject[] = subjectsSnap.docs.map((d) => ({
+      id: d.id,
+      name: d.data().name,
+      color: d.data().color,
+    }));
 
-  const { data: subjectsData } = await supabase.from('subjects').select('*').eq('user_id', userId)
-  const { data: postsData } = await supabase.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+    // 2. Fetch posts
+    const postsQuery = query(collection(db, 'posts'), where('username', '==', username));
+    const postsSnap = await getDocs(postsQuery);
 
-  if (!postsData || postsData.length === 0) {
-    return {
-      subjects: (subjectsData || []).map(s => ({ id: s.id, name: s.name, color: s.color })),
-      posts: []
+    if (postsSnap.empty) {
+      return { subjects, posts: [] };
     }
+
+    const posts: JournalPost[] = await Promise.all(
+      postsSnap.docs.map(async (postDoc) => {
+        const postData = postDoc.data();
+        const commentsSnap = await getDocs(
+          query(collection(db, 'posts', postDoc.id, 'comments'), orderBy('createdAt', 'asc'))
+        );
+
+        const comments: PostComment[] = commentsSnap.docs.map((cDoc) => {
+          const cData = cDoc.data();
+          return {
+            id: cDoc.id,
+            authorUsername: cData.authorUsername,
+            body: cData.body,
+            createdAt: cData.createdAt,
+            parentId: cData.parentId || null,
+          };
+        });
+
+        return {
+          id: postDoc.id,
+          subjectId: postData.subjectId,
+          title: postData.title,
+          imageDataUrl: postData.imageDataUrl || null,
+          imageUrls: postData.imageUrls || (postData.imageDataUrl ? [postData.imageDataUrl] : []),
+          createdAt: postData.createdAt,
+          sections: postData.sections || [],
+          comments,
+        };
+      })
+    );
+
+    // Sort descending by creation
+    posts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    return { subjects, posts };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, 'posts');
   }
-
-  const postIds = postsData.map(p => p.id)
-  
-  const { data: sectionsData } = await supabase.from('post_sections').select('*').in('post_id', postIds)
-  const { data: commentsData } = await supabase.from('post_comments').select('*, profiles!inner(username)').in('post_id', postIds).order('created_at', { ascending: true })
-
-  const subjects = (subjectsData || []).map(s => ({ id: s.id, name: s.name, color: s.color }))
-  
-  const posts = postsData.map(post => {
-    const postSections = (sectionsData || []).filter(s => s.post_id === post.id).map(s => ({
-      id: s.id,
-      question: s.question,
-      answer: s.answer || '',
-      askedBy: s.asked_by
-    }))
-
-    const postComments = (commentsData || []).filter(c => c.post_id === post.id).map(c => ({
-      id: c.id,
-      authorUsername: c.profiles.username,
-      body: c.body,
-      createdAt: c.created_at,
-      parentId: c.parent_id || null,
-    }))
-
-    return {
-      id: post.id,
-      subjectId: post.subject_id,
-      title: post.title,
-      imageDataUrl: post.image_url,
-      imageUrls: post.image_urls || (post.image_url ? [post.image_url] : []),
-      createdAt: post.created_at,
-      sections: postSections,
-      comments: postComments
-    }
-  })
-
-  return { subjects, posts }
 }
 
 export async function addSubject(username: string, name: string, color: string): Promise<void> {
-  const trimmed = name.trim()
-  if (!trimmed) throw new Error('Give the subject a name.')
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Give the subject a name.');
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
 
-  const userId = await getProfileId(username)
-  if (!userId) throw new Error('User not found.')
+  try {
+    const existingQ = query(
+      collection(db, 'subjects'),
+      where('username', '==', username),
+      where('name', '==', trimmed)
+    );
+    const existingSnap = await getDocs(existingQ);
+    if (!existingSnap.empty) throw new Error('You already have that subject.');
 
-  const { data: existing } = await supabase.from('subjects').select('id').eq('user_id', userId).ilike('name', trimmed).maybeSingle()
-  if (existing) throw new Error('You already have that subject.')
-
-  await supabase.from('subjects').insert({
-    user_id: userId,
-    name: trimmed,
-    color,
-  })
+    const newSubRef = doc(collection(db, 'subjects'));
+    await setDoc(newSubRef, {
+      id: newSubRef.id,
+      userId: user.uid,
+      username,
+      name: trimmed,
+      color,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('already have that subject')) {
+      throw error;
+    }
+    handleFirestoreError(error, OperationType.CREATE, 'subjects');
+  }
 }
 
 export async function removeSubject(_username: string, subjectId: string): Promise<void> {
-  await supabase.from('subjects').delete().eq('id', subjectId)
+  try {
+    await deleteDoc(doc(db, 'subjects', subjectId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `subjects/${subjectId}`);
+  }
 }
 
-export async function addPost(username: string, post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>): Promise<void> {
-  const userId = await getProfileId(username)
-  if (!userId) throw new Error('User not found.')
+export async function addPost(
+  username: string,
+  post: Omit<JournalPost, 'id' | 'createdAt' | 'comments'>
+): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
 
   const sections = post.sections
     .map((section) => ({
@@ -176,110 +265,171 @@ export async function addPost(username: string, post: Omit<JournalPost, 'id' | '
       answer: section.answer.trim(),
       askedBy: section.askedBy ?? null,
     }))
-    .filter((section) => section.question || section.answer)
+    .filter((section) => section.question || section.answer);
 
-  if (!post.title.trim() && sections.length === 0 && !post.imageDataUrl && (!post.imageUrls || post.imageUrls.length === 0)) {
-    throw new Error('Add a title, a question, or an image.')
+  if (
+    !post.title.trim() &&
+    sections.length === 0 &&
+    !post.imageDataUrl &&
+    (!post.imageUrls || post.imageUrls.length === 0)
+  ) {
+    throw new Error('Add a title, a question, or an image.');
   }
 
-  const { data: insertedPost, error } = await supabase.from('posts').insert({
-    user_id: userId,
-    subject_id: post.subjectId,
-    title: post.title,
-    image_url: post.imageDataUrl,
-    image_urls: post.imageUrls,
-  }).select('id').single()
-
-  if (error || !insertedPost) throw new Error('Could not create post.')
-
-  if (sections.length > 0) {
-    const sectionsToInsert = sections.map(s => ({
-      post_id: insertedPost.id,
-      question: s.question,
-      answer: s.answer,
-      asked_by: s.askedBy
-    }))
-    await supabase.from('post_sections').insert(sectionsToInsert)
+  try {
+    const postRef = doc(collection(db, 'posts'));
+    await setDoc(postRef, {
+      id: postRef.id,
+      userId: user.uid,
+      username,
+      subjectId: post.subjectId,
+      title: post.title.trim(),
+      imageDataUrl: post.imageDataUrl || null,
+      imageUrls: post.imageUrls || (post.imageDataUrl ? [post.imageDataUrl] : []),
+      sections,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, 'posts');
   }
 }
 
 export async function removePost(_username: string, postId: string): Promise<void> {
-  await supabase.from('posts').delete().eq('id', postId)
+  try {
+    await deleteDoc(doc(db, 'posts', postId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `posts/${postId}`);
+  }
 }
 
-export async function addQuestionToPost(_ownerUsername: string, postId: string, askedBy: string, question: string): Promise<void> {
-  const trimmed = question.trim()
-  if (!trimmed) throw new Error('Write a question first.')
+export async function addQuestionToPost(
+  _ownerUsername: string,
+  postId: string,
+  askedBy: string,
+  question: string
+): Promise<void> {
+  const trimmed = question.trim();
+  if (!trimmed) throw new Error('Write a question first.');
 
-  await supabase.from('post_sections').insert({
-    post_id: postId,
-    question: trimmed,
-    answer: '',
-    asked_by: askedBy,
-  })
+  try {
+    const postDocRef = doc(db, 'posts', postId);
+    const postSnap = await getDoc(postDocRef);
+    if (!postSnap.exists()) throw new Error('Post not found.');
+
+    const data = postSnap.data();
+    const sections: PostSection[] = data.sections || [];
+    sections.push({
+      id: crypto.randomUUID(),
+      question: trimmed,
+      answer: '',
+      askedBy,
+    });
+
+    await updateDoc(postDocRef, { sections });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
+  }
 }
 
-export async function answerPostQuestion(_ownerUsername: string, _postId: string, sectionId: string, answer: string): Promise<void> {
-  const trimmed = answer.trim()
-  if (!trimmed) throw new Error('Write an answer first.')
+export async function answerPostQuestion(
+  _ownerUsername: string,
+  postId: string,
+  sectionId: string,
+  answer: string
+): Promise<void> {
+  const trimmed = answer.trim();
+  if (!trimmed) throw new Error('Write an answer first.');
 
-  await supabase.from('post_sections').update({ answer: trimmed }).eq('id', sectionId)
+  try {
+    const postDocRef = doc(db, 'posts', postId);
+    const postSnap = await getDoc(postDocRef);
+    if (!postSnap.exists()) throw new Error('Post not found.');
+
+    const data = postSnap.data();
+    const sections: PostSection[] = (data.sections || []).map((s: PostSection) => {
+      if (s.id === sectionId) {
+        return { ...s, answer: trimmed };
+      }
+      return s;
+    });
+
+    await updateDoc(postDocRef, { sections });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
+  }
 }
 
-export async function addCommentToPost(_ownerUsername: string, postId: string, authorUsername: string, body: string, parentId?: string | null): Promise<void> {
-  const trimmed = body.trim()
-  if (!trimmed) throw new Error('Write a comment first.')
+export async function addCommentToPost(
+  _ownerUsername: string,
+  postId: string,
+  authorUsername: string,
+  body: string,
+  parentId?: string | null
+): Promise<void> {
+  const trimmed = body.trim();
+  if (!trimmed) throw new Error('Write a comment first.');
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
 
-  const authorId = await getProfileId(authorUsername)
-  if (!authorId) throw new Error('Author not found.')
-
-  await supabase.from('post_comments').insert({
-    post_id: postId,
-    author_id: authorId,
-    body: trimmed,
-    parent_id: parentId || null
-  })
+  try {
+    const commentRef = doc(collection(db, 'posts', postId, 'comments'));
+    await setDoc(commentRef, {
+      id: commentRef.id,
+      postId,
+      authorId: user.uid,
+      authorUsername,
+      body: trimmed,
+      parentId: parentId || null,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `posts/${postId}/comments`);
+  }
 }
 
 export async function removePostComment(
   _ownerUsername: string,
-  _postId: string,
+  postId: string,
   commentId: string,
-  _requester: string,
+  _requester: string
 ): Promise<void> {
-  await supabase.from('post_comments').delete().eq('id', commentId)
+  try {
+    await deleteDoc(doc(db, 'posts', postId, 'comments', commentId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `posts/${postId}/comments/${commentId}`);
+  }
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Could not read that image.'))
-    image.src = src
-  })
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not read that image.'));
+    image.src = src;
+  });
 }
 
 export async function fileToCompressedDataUrl(file: File, maxEdge: number): Promise<string> {
   if (!file.type.startsWith('image/')) {
-    throw new Error('Choose an image file.')
+    throw new Error('Choose an image file.');
   }
 
-  const objectUrl = URL.createObjectURL(file)
+  const objectUrl = URL.createObjectURL(file);
   try {
-    const image = await loadImage(objectUrl)
-    const scale = Math.min(1, maxEdge / Math.max(image.width, image.height))
-    const width = Math.max(1, Math.round(image.width * scale))
-    const height = Math.max(1, Math.round(image.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
+    const image = await loadImage(objectUrl);
+    const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
     if (!context) {
-      throw new Error('Could not process that image.')
+      throw new Error('Could not process that image.');
     }
-    context.drawImage(image, 0, 0, width, height)
-    return canvas.toDataURL('image/jpeg', 0.82)
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', 0.82);
   } finally {
-    URL.revokeObjectURL(objectUrl)
+    URL.revokeObjectURL(objectUrl);
   }
 }

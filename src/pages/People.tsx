@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import { Globe, Lock } from 'lucide-react'
 import FollowButton from '../components/social/FollowButton'
 import { getProfile, listDiscoverablePeople } from '../lib/journal'
 import { acceptFollowRequest, declineFollowRequest, getFollowRelation, getIncomingRequests } from '../lib/social'
@@ -138,7 +139,18 @@ export default function People() {
                   <span className="h-11 w-11 shrink-0 rounded-full bg-[var(--color-primary-soft)]" />
                 )}
                 <div className="min-w-0">
-                  <p className="font-semibold truncate">{person.displayName}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold truncate">{person.displayName}</p>
+                    {person.isPrivate ? (
+                      <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+                        <Lock size={10} /> Private
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
+                        <Globe size={10} /> Public
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-[var(--color-muted)]">@{person.username}</p>
                 </div>
               </Link>

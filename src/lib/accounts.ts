@@ -1,116 +1,134 @@
-import { supabase } from './supabase'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+} from 'firebase/firestore';
+import { auth, db, googleProvider, handleFirestoreError, OperationType, signInWithPopup, signOut } from './firebase';
 
-const RESERVED_USERNAMES = new Set(['auth', 'login', 'signup', 'logout', 'setup', 'journal', 'feed', 'people', 'find'])
+const RESERVED_USERNAMES = new Set(['auth', 'login', 'signup', 'logout', 'setup', 'journal', 'feed', 'people', 'find']);
 
 export class AuthError extends Error {
   constructor(message: string) {
-    super(message)
-    this.name = 'AuthError'
+    super(message);
+    this.name = 'AuthError';
   }
 }
 
 export function normalizeUsername(username: string): string {
-  return username.trim().toLowerCase()
+  return username.trim().toLowerCase();
 }
 
 export function validateUsername(username: string): string {
-  const normalized = normalizeUsername(username)
+  const normalized = normalizeUsername(username);
 
   if (!normalized) {
-    throw new AuthError('Choose a username.')
+    throw new AuthError('Choose a username.');
   }
 
-  if (normalized.length < 3 || normalized.length > 20) {
-    throw new AuthError('Username must be 3–20 characters.')
+  if (normalized.length < 3 || normalized.length > 30) {
+    throw new AuthError('Username must be 3–30 characters.');
   }
 
   if (!/^[a-z0-9_]+$/.test(normalized)) {
-    throw new AuthError('Use letters, numbers, and underscores only.')
+    throw new AuthError('Use letters, numbers, and underscores only.');
   }
 
   if (RESERVED_USERNAMES.has(normalized)) {
-    throw new AuthError('That username is reserved. Try another.')
+    throw new AuthError('That username is reserved. Try another.');
   }
 
-  return normalized
+  return normalized;
 }
 
 export async function isUsernameTaken(username: string): Promise<boolean> {
-  const normalized = normalizeUsername(username)
-  const { data, error } = await supabase.from('profiles').select('username').eq('username', normalized).single()
-  return Boolean(data && !error)
+  const normalized = normalizeUsername(username);
+  try {
+    const claimDoc = await getDoc(doc(db, 'usernames', normalized));
+    return claimDoc.exists();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `usernames/${normalized}`);
+  }
 }
 
 export async function listUsernames(): Promise<string[]> {
-  const { data } = await supabase.from('profiles').select('username')
-  return (data || []).map((row) => row.username)
+  try {
+    const snapshot = await getDocs(collection(db, 'usernames'));
+    return snapshot.docs.map((docSnap) => docSnap.id);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'usernames');
+  }
 }
 
-function emailForUsername(username: string): string {
-  return `${username}@escent.local`
+export function generateCandidateUsername(name?: string | null, email?: string | null): string {
+  let base = '';
+  if (name) {
+    base = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  }
+  if (!base && email) {
+    base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  }
+  if (base.length < 3) {
+    base = 'user_' + Math.floor(1000 + Math.random() * 9000);
+  }
+  if (base.length > 20) {
+    base = base.slice(0, 20);
+  }
+  return base;
 }
 
-export async function registerUser(username: string, password: string): Promise<string> {
-  const normalized = validateUsername(username)
+export async function signInWithGoogle(): Promise<{ username: string; isNewUser: boolean }> {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
 
-  if (!password) {
-    throw new AuthError('Choose a password.')
+    const userProfileRef = doc(db, 'profiles', user.uid);
+    const profileSnap = await getDoc(userProfileRef);
+
+    if (profileSnap.exists()) {
+      const data = profileSnap.data();
+      return { username: data.username, isNewUser: false };
+    }
+
+    // New user: claim a unique username
+    let candidate = generateCandidateUsername(user.displayName, user.email);
+    let isTaken = await isUsernameTaken(candidate);
+    let attempts = 0;
+    while (isTaken && attempts < 10) {
+      attempts++;
+      const suffix = Math.floor(100 + Math.random() * 900);
+      candidate = `${candidate.slice(0, 16)}_${suffix}`;
+      isTaken = await isUsernameTaken(candidate);
+    }
+
+    // Reserve username claim
+    await setDoc(doc(db, 'usernames', candidate), {
+      username: candidate,
+      userId: user.uid,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Create profile
+    await setDoc(userProfileRef, {
+      id: user.uid,
+      username: candidate,
+      displayName: user.displayName || candidate,
+      avatarUrl: user.photoURL || null,
+      email: user.email || null,
+      isPrivate: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    return { username: candidate, isNewUser: true };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('auth/popup-closed-by-user')) {
+      throw new AuthError('Sign-in cancelled.');
+    }
+    handleFirestoreError(error, OperationType.WRITE, 'profiles');
   }
-
-  if (password.length < 6) {
-    throw new AuthError('Password must be at least 6 characters.')
-  }
-
-  const taken = await isUsernameTaken(normalized)
-  if (taken) {
-    throw new AuthError('That username is taken. Try another.')
-  }
-
-  const email = emailForUsername(normalized)
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  })
-
-  if (error) {
-    throw new AuthError(error.message)
-  }
-
-  const user = data.user
-  if (!user) {
-    throw new AuthError('Signup failed.')
-  }
-
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: user.id,
-    username: normalized,
-    display_name: normalized,
-  })
-
-  if (profileError) {
-    // Attempt rollback/cleanup, but mostly just error out
-    throw new AuthError('Failed to create profile: ' + profileError.message)
-  }
-
-  return normalized
 }
 
-export async function authenticateUser(username: string, password: string): Promise<string> {
-  const normalized = normalizeUsername(username)
-
-  if (!normalized || !password) {
-    throw new AuthError('Enter your username and password.')
-  }
-
-  const email = emailForUsername(normalized)
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-
-  if (error) {
-    throw new AuthError('Username or password is wrong.')
-  }
-
-  return normalized
+export async function signOutUser(): Promise<void> {
+  await signOut(auth);
 }

@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection test document
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // User profiles
+    match /profiles/{userId} {
+      allow read: if true;
+      allow create: if isOwner(userId) && isValidId(userId) &&
+        incoming().id == userId &&
+        incoming().username is string &&
+        incoming().username.size() >= 3 && incoming().username.size() <= 50;
+      allow update: if isOwner(userId) && incoming().id == userId;
+      allow delete: if isOwner(userId);
+    }
+
+    // Username reservation registry
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // Subjects
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // Posts
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        existing().userId == request.auth.uid ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['sections'])
+      );
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+
+      // Nested comments
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && incoming().authorId == request.auth.uid;
+        allow update: if false;
+        allow delete: if isSignedIn() && (
+          existing().authorId == request.auth.uid ||
+          get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid
+        );
+      }
+    }
+
+    // Follow relationships
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().followerId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        existing().followingId == request.auth.uid ||
+        existing().followerId == request.auth.uid
+      );
+      allow delete: if isSignedIn() && (
+        existing().followerId == request.auth.uid ||
+        existing().followingId == request.auth.uid
+      );
+    }
+  }
+}
