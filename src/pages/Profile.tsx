@@ -224,21 +224,9 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                          {profile.displayName}
-                        </h1>
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            profile.isPrivate
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          }`}
-                        >
-                          {profile.isPrivate ? <Lock size={12} /> : <Globe size={12} />}
-                          {profile.isPrivate ? 'Private account' : 'Public account'}
-                        </span>
-                      </div>
+                      <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1">
+                        {profile.displayName}
+                      </h1>
                       <p className="text-[var(--color-muted)] mb-4">@{username}</p>
                       <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">Your learning space</h2>
                       <p className="mt-1 text-sm sm:text-base text-[var(--color-muted)]">
@@ -287,18 +275,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
               </div>
             ) : (
               <>
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{profile.displayName}</h1>
-                  {profile.isPrivate ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                      <Lock size={12} /> Private account
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                      <Globe size={12} /> Public account
-                    </span>
-                  )}
-                </div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1">{profile.displayName}</h1>
                 <p className="text-[var(--color-muted)] mb-4">@{username}</p>
                 {currentUsername ? (
                   <FollowButton

@@ -52,6 +52,7 @@
         "imageDataUrl": { "type": "string" },
         "imageUrls": { "type": "array" },
         "sections": { "type": "array" },
+        "savedFrom": { "type": "string", "maxLength": 50 },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "userId", "username", "subjectId", "title"]

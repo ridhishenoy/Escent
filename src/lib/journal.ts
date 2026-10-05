@@ -49,6 +49,7 @@ export type JournalPost = {
   comments: PostComment[];
   imageDataUrl: string | null;
   imageUrls: string[];
+  savedFrom?: string | null;
   createdAt: string;
 };
 
@@ -197,6 +198,7 @@ export async function getJournal(username: string): Promise<Journal> {
           imageUrls: postData.imageUrls || (postData.imageDataUrl ? [postData.imageDataUrl] : []),
           createdAt: postData.createdAt,
           sections: postData.sections || [],
+          savedFrom: postData.savedFrom || null,
           comments,
         };
       })
@@ -287,11 +289,28 @@ export async function addPost(
       imageDataUrl: post.imageDataUrl || null,
       imageUrls: post.imageUrls || (post.imageDataUrl ? [post.imageDataUrl] : []),
       sections,
+      savedFrom: post.savedFrom || null,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, 'posts');
   }
+}
+
+export async function savePostToCollection(
+  viewerUsername: string,
+  targetSubjectId: string,
+  sourcePost: JournalPost,
+  sourceOwnerUsername?: string
+): Promise<void> {
+  await addPost(viewerUsername, {
+    subjectId: targetSubjectId,
+    title: sourcePost.title,
+    sections: sourcePost.sections,
+    imageDataUrl: sourcePost.imageDataUrl,
+    imageUrls: sourcePost.imageUrls,
+    savedFrom: sourceOwnerUsername || null,
+  });
 }
 
 export async function removePost(_username: string, postId: string): Promise<void> {
