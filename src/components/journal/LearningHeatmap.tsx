@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Flame, Clock, CheckCircle2, BookOpen } from 'lucide-react'
+import { Flame, BookOpen } from 'lucide-react'
 import { calculateLearningStats, type JournalPost } from '../../lib/journal'
 
 type LearningHeatmapProps = {
@@ -29,12 +29,10 @@ export default function LearningHeatmap({ posts, subjectsCount }: LearningHeatma
     return list
   }, [stats.activityDates, referenceTime])
 
-  const totalHours = Math.round((stats.totalStudyMinutes / 60) * 10) / 10
-
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-white p-4 sm:p-6 shadow-xs space-y-4">
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {/* Streak */}
         <div className="p-3 sm:p-3.5 rounded-xl bg-orange-50/80 border border-orange-200/70 flex items-center gap-3">
           <div className="size-9 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
@@ -45,32 +43,6 @@ export default function LearningHeatmap({ posts, subjectsCount }: LearningHeatma
               {stats.streakDays} {stats.streakDays === 1 ? 'Day' : 'Days'}
             </p>
             <p className="text-[11px] font-semibold text-orange-800/80 truncate">Learning Streak</p>
-          </div>
-        </div>
-
-        {/* Study Time */}
-        <div className="p-3 sm:p-3.5 rounded-xl bg-blue-50/80 border border-blue-200/70 flex items-center gap-3">
-          <div className="size-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-            <Clock size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-lg sm:text-xl font-black text-blue-950 leading-tight">
-              {totalHours > 0 ? `${totalHours} hrs` : `${stats.totalStudyMinutes} m`}
-            </p>
-            <p className="text-[11px] font-semibold text-blue-800/80 truncate">Study Focus</p>
-          </div>
-        </div>
-
-        {/* Questions Solved */}
-        <div className="p-3 sm:p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200/70 flex items-center gap-3">
-          <div className="size-9 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-lg sm:text-xl font-black text-emerald-950 leading-tight">
-              {stats.totalQuestionsAnswered}
-            </p>
-            <p className="text-[11px] font-semibold text-emerald-800/80 truncate">Q&As Solved</p>
           </div>
         </div>
 
