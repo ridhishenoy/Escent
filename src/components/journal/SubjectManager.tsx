@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Award, Plus, Sparkles, X } from 'lucide-react'
 import { SUBJECT_COLORS, type Subject } from '../../lib/journal'
 
 type SubjectManagerProps = {
@@ -9,6 +9,8 @@ type SubjectManagerProps = {
   onSelect: (id: string | null) => void
   onAdd: (name: string, color: string) => void
   onRemove: (id: string) => void
+  onPracticeFlashcards?: () => void
+  onExportPortfolio?: () => void
 }
 
 export default function SubjectManager({
@@ -18,6 +20,8 @@ export default function SubjectManager({
   onSelect,
   onAdd,
   onRemove,
+  onPracticeFlashcards,
+  onExportPortfolio,
 }: SubjectManagerProps) {
   const [name, setName] = useState('')
   const [color, setColor] = useState(SUBJECT_COLORS[0])
@@ -88,45 +92,74 @@ export default function SubjectManager({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onSelect(null)}
-          className={`rounded-full px-3 py-1.5 text-sm font-medium border ${
-            selectedId === null
-              ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
-              : 'bg-white text-[var(--color-foreground)] border-[var(--color-border)]'
-          }`}
-        >
-          All
-        </button>
-        {subjects.map((subject) => (
-          <span
-            key={subject.id}
-            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-medium ${
-              selectedId === subject.id ? 'text-white' : 'bg-white'
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            type="button"
+            onClick={() => onSelect(null)}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium border cursor-pointer ${
+              selectedId === null
+                ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                : 'bg-white text-[var(--color-foreground)] border-[var(--color-border)] hover:bg-gray-50'
             }`}
-            style={
-              selectedId === subject.id
-                ? { backgroundColor: subject.color, borderColor: subject.color }
-                : { borderColor: subject.color, color: subject.color }
-            }
           >
-            <button type="button" onClick={() => onSelect(subject.id)}>
-              {subject.name}
-            </button>
-            {editable ? (
-              <button
-                type="button"
-                aria-label={`Remove ${subject.name}`}
-                onClick={() => onRemove(subject.id)}
-                className="ml-1 opacity-80 hover:opacity-100"
-              >
-                <X size={14} />
+            All
+          </button>
+          {subjects.map((subject) => (
+            <span
+              key={subject.id}
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
+                selectedId === subject.id ? 'text-white shadow-xs' : 'bg-white'
+              }`}
+              style={
+                selectedId === subject.id
+                  ? { backgroundColor: subject.color, borderColor: subject.color }
+                  : { borderColor: subject.color, color: subject.color }
+              }
+            >
+              <button type="button" onClick={() => onSelect(subject.id)} className="cursor-pointer">
+                {subject.name}
               </button>
-            ) : null}
-          </span>
-        ))}
+              {editable ? (
+                <button
+                  type="button"
+                  aria-label={`Remove ${subject.name}`}
+                  onClick={() => onRemove(subject.id)}
+                  className="ml-1 opacity-80 hover:opacity-100 cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
+            </span>
+          ))}
+        </div>
+
+        {/* Study Flashcards & Export Portfolio Action Buttons */}
+        <div className="flex items-center gap-2">
+          {onPracticeFlashcards && subjects.length > 0 && (
+            <button
+              type="button"
+              onClick={onPracticeFlashcards}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors cursor-pointer shadow-2xs"
+              title="Practice active recall flashcards"
+            >
+              <Sparkles size={14} className="text-purple-600" />
+              <span>Study Flashcards</span>
+            </button>
+          )}
+
+          {onExportPortfolio && subjects.length > 0 && (
+            <button
+              type="button"
+              onClick={onExportPortfolio}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-[var(--color-border)] transition-colors cursor-pointer shadow-2xs"
+              title="Export this subject as a printable portfolio summary"
+            >
+              <Award size={14} className="text-[var(--color-primary)]" />
+              <span>Export Portfolio</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {subjects.length === 0 ? (

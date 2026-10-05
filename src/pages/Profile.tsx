@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { Globe, Lock, Check } from 'lucide-react'
 import AvatarUploader from '../components/journal/AvatarUploader'
+import FlashcardModal, { type FlashcardItem } from '../components/journal/FlashcardModal'
+import LearningHeatmap from '../components/journal/LearningHeatmap'
+import PortfolioExportModal from '../components/journal/PortfolioExportModal'
 import PostCard from '../components/journal/PostCard'
 import PostComposer from '../components/journal/PostComposer'
 import SubjectManager from '../components/journal/SubjectManager'
@@ -59,15 +62,10 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
     enabled: Boolean(username),
   })
 
-  const [displayName, setDisplayName] = useState(profile?.displayName || username)
-  const [isPrivate, setIsPrivate] = useState<boolean>(Boolean(profile?.isPrivate))
-
-  useEffect(() => {
-    if (profile) {
-      if (profile.displayName) setDisplayName(profile.displayName)
-      setIsPrivate(Boolean(profile.isPrivate))
-    }
-  }, [profile])
+  const [editDisplayName, setEditDisplayName] = useState('')
+  const [editIsPrivate, setEditIsPrivate] = useState(false)
+  const [isSubjectFlashcardOpen, setIsSubjectFlashcardOpen] = useState(false)
+  const [isSubjectExportOpen, setIsSubjectExportOpen] = useState(false)
 
   const { data: journal, refetch: refetchJournal, isLoading: isJournalLoading } = useQuery({
     queryKey: ['journal', username],
@@ -86,8 +84,42 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
 
   const visiblePosts = useMemo(() => {
     if (!journal) return []
-    if (!selectedSubjectId) return journal.posts
-    return journal.posts.filter((post) => post.subjectId === selectedSubjectId)
+    const posts = selectedSubjectId
+      ? journal.posts.filter((post) => post.subjectId === selectedSubjectId)
+      : journal.posts
+    return [...posts].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      return b.createdAt.localeCompare(a.createdAt)
+    })
+  }, [journal, selectedSubjectId])
+
+  const activeSubject = useMemo(() => {
+    if (!journal) return null
+    return (
+      journal.subjects.find((s) => s.id === selectedSubjectId) || {
+        id: 'all',
+        name: selectedSubjectId ? 'Subject' : 'All Topics',
+        color: 'var(--color-primary)',
+      }
+    )
+  }, [journal, selectedSubjectId])
+
+  const subjectFlashcards: FlashcardItem[] = useMemo(() => {
+    if (!journal) return []
+    const targetPosts = selectedSubjectId
+      ? journal.posts.filter((p) => p.subjectId === selectedSubjectId)
+      : journal.posts
+
+    return targetPosts.flatMap((p) =>
+      p.sections.map((s) => ({
+        id: s.id,
+        question: s.question,
+        answer: s.answer,
+        askedBy: s.askedBy,
+        contextTitle: p.title,
+      }))
+    )
   }, [journal, selectedSubjectId])
 
   async function handleAvatar(file: File) {
@@ -107,12 +139,11 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
 
   async function handleSaveProfile() {
     if (!profile) return
-    const nextName = displayName.trim() || username
-    setDisplayName(nextName)
+    const nextName = editDisplayName.trim() || username
     await saveProfile({
       ...profile,
       displayName: nextName,
-      isPrivate,
+      isPrivate: editIsPrivate,
     })
     await refetchProfile()
     onSessionProfile({ displayName: nextName })
@@ -167,8 +198,8 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                           Display Name
                         </label>
                         <input
-                          value={displayName}
-                          onChange={(event) => setDisplayName(event.target.value)}
+                          value={editDisplayName}
+                          onChange={(event) => setEditDisplayName(event.target.value)}
                           placeholder="Your display name"
                           className="w-full text-lg sm:text-xl font-bold bg-white border border-[var(--color-border)] rounded-xl px-3 py-2 outline-none focus:border-[var(--color-primary)]"
                           autoFocus
@@ -182,9 +213,9 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <button
                             type="button"
-                            onClick={() => setIsPrivate(false)}
+                            onClick={() => setEditIsPrivate(false)}
                             className={`flex flex-col items-start p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                              !isPrivate
+                              !editIsPrivate
                                 ? 'border-[var(--color-primary)] bg-[var(--color-primary-soft)]/15 shadow-xs'
                                 : 'border-[var(--color-border)] hover:border-gray-300 bg-white'
                             }`}
@@ -193,7 +224,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                               <span className="flex items-center gap-1.5 font-bold text-sm text-[var(--color-foreground)]">
                                 <Globe size={16} className="text-[var(--color-primary)]" /> Public
                               </span>
-                              {!isPrivate ? <Check size={16} className="text-[var(--color-primary)]" /> : null}
+                              {!editIsPrivate ? <Check size={16} className="text-[var(--color-primary)]" /> : null}
                             </div>
                             <p className="text-xs text-[var(--color-muted)] leading-relaxed">
                               Posts appear in everyone's Feed and profile is open to all learners.
@@ -202,9 +233,9 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
 
                           <button
                             type="button"
-                            onClick={() => setIsPrivate(true)}
+                            onClick={() => setEditIsPrivate(true)}
                             className={`flex flex-col items-start p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                              isPrivate
+                              editIsPrivate
                                 ? 'border-[var(--color-primary)] bg-[var(--color-primary-soft)]/15 shadow-xs'
                                 : 'border-[var(--color-border)] hover:border-gray-300 bg-white'
                             }`}
@@ -213,7 +244,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                               <span className="flex items-center gap-1.5 font-bold text-sm text-[var(--color-foreground)]">
                                 <Lock size={16} className="text-[var(--color-primary)]" /> Private
                               </span>
-                              {isPrivate ? <Check size={16} className="text-[var(--color-primary)]" /> : null}
+                              {editIsPrivate ? <Check size={16} className="text-[var(--color-primary)]" /> : null}
                             </div>
                             <p className="text-xs text-[var(--color-muted)] leading-relaxed">
                               Only approved followers can see your posts in their Feed and profile.
@@ -250,13 +281,7 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsEditingProfile(false)
-                          if (profile) {
-                            setDisplayName(profile.displayName)
-                            setIsPrivate(Boolean(profile.isPrivate))
-                          }
-                        }}
+                        onClick={() => setIsEditingProfile(false)}
                         className="px-3 py-2 text-sm font-semibold rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors cursor-pointer"
                       >
                         Cancel
@@ -265,7 +290,11 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setIsEditingProfile(true)}
+                      onClick={() => {
+                        setEditDisplayName(profile.displayName || username)
+                        setEditIsPrivate(Boolean(profile.isPrivate))
+                        setIsEditingProfile(true)
+                      }}
                       className="px-4 py-2 text-sm font-semibold rounded-full bg-[var(--color-primary-soft)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]/60 transition-colors cursor-pointer"
                     >
                       Edit Profile
@@ -295,6 +324,11 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
         </div>
       </section>
 
+      {/* Learning Consistency & Activity Heatmap */}
+      {canSeePosts && (
+        <LearningHeatmap posts={journal.posts} subjectsCount={journal.subjects.length} />
+      )}
+
       {/* Only owner can manage subjects or compose posts */}
       {canSeePosts && (
         <SubjectManager
@@ -304,6 +338,8 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
           onSelect={setSelectedSubjectId}
           onAdd={handleAddSubject}
           onRemove={handleRemoveSubject}
+          onPracticeFlashcards={() => setIsSubjectFlashcardOpen(true)}
+          onExportPortfolio={() => setIsSubjectExportOpen(true)}
         />
       )}
 
@@ -348,6 +384,27 @@ function ProfileSpace({ username, isOwner, onSessionProfile }: ProfileSpaceProps
           </div>
         )}
       </section>
+
+      {/* Modals */}
+      {activeSubject && (
+        <>
+          <FlashcardModal
+            isOpen={isSubjectFlashcardOpen}
+            onClose={() => setIsSubjectFlashcardOpen(false)}
+            title={`${activeSubject.name} Flashcards`}
+            cards={subjectFlashcards}
+          />
+
+          <PortfolioExportModal
+            isOpen={isSubjectExportOpen}
+            onClose={() => setIsSubjectExportOpen(false)}
+            subject={activeSubject}
+            posts={visiblePosts}
+            ownerDisplayName={profile.displayName}
+            ownerUsername={username}
+          />
+        </>
+      )}
     </div>
   )
 }

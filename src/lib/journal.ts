@@ -31,6 +31,7 @@ export type PostSection = {
   question: string;
   answer: string;
   askedBy: string | null;
+  isHelpful?: boolean;
 };
 
 export type PostComment = {
@@ -45,6 +46,9 @@ export type JournalPost = {
   id: string;
   subjectId: string;
   title: string;
+  keyTakeaway?: string | null;
+  studyMinutes?: number | null;
+  isPinned?: boolean;
   sections: PostSection[];
   comments: PostComment[];
   imageDataUrl: string | null;
@@ -194,6 +198,9 @@ export async function getJournal(username: string): Promise<Journal> {
           id: postDoc.id,
           subjectId: postData.subjectId,
           title: postData.title,
+          keyTakeaway: postData.keyTakeaway || null,
+          studyMinutes: postData.studyMinutes || null,
+          isPinned: Boolean(postData.isPinned),
           imageDataUrl: postData.imageDataUrl || null,
           imageUrls: postData.imageUrls || (postData.imageDataUrl ? [postData.imageDataUrl] : []),
           createdAt: postData.createdAt,
@@ -204,8 +211,12 @@ export async function getJournal(username: string): Promise<Journal> {
       })
     );
 
-    // Sort descending by creation
-    posts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // Sort: pinned posts first, then descending by creation
+    posts.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
 
     return { subjects, posts };
   } catch (error) {
@@ -286,6 +297,9 @@ export async function addPost(
       username,
       subjectId: post.subjectId,
       title: post.title.trim(),
+      keyTakeaway: post.keyTakeaway ? post.keyTakeaway.trim() : null,
+      studyMinutes: post.studyMinutes ? Number(post.studyMinutes) : null,
+      isPinned: Boolean(post.isPinned),
       imageDataUrl: post.imageDataUrl || null,
       imageUrls: post.imageUrls || (post.imageDataUrl ? [post.imageDataUrl] : []),
       sections,
@@ -295,6 +309,93 @@ export async function addPost(
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, 'posts');
   }
+}
+
+export async function togglePinPost(_ownerUsername: string, postId: string, isPinned: boolean): Promise<void> {
+  try {
+    const postRef = doc(db, 'posts', postId);
+    await updateDoc(postRef, { isPinned });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
+  }
+}
+
+export async function toggleHelpfulAnswer(_ownerUsername: string, postId: string, sectionId: string): Promise<void> {
+  try {
+    const postRef = doc(db, 'posts', postId);
+    const snap = await getDoc(postRef);
+    if (!snap.exists()) return;
+    const sections: PostSection[] = (snap.data().sections || []).map((s: PostSection) => {
+      if (s.id === sectionId) {
+        return { ...s, isHelpful: !s.isHelpful };
+      }
+      return s;
+    });
+    await updateDoc(postRef, { sections });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
+  }
+}
+
+export type LearningStats = {
+  streakDays: number;
+  totalStudyMinutes: number;
+  totalQuestionsAnswered: number;
+  totalPosts: number;
+  activityDates: Record<string, number>; // YYYY-MM-DD -> count
+};
+
+export function calculateLearningStats(posts: JournalPost[]): LearningStats {
+  const activityDates: Record<string, number> = {};
+  let totalStudyMinutes = 0;
+  let totalQuestionsAnswered = 0;
+
+  posts.forEach((post) => {
+    const dateStr = post.createdAt.split('T')[0];
+    activityDates[dateStr] = (activityDates[dateStr] || 0) + 1;
+
+    if (post.studyMinutes) {
+      totalStudyMinutes += Number(post.studyMinutes);
+    }
+
+    if (post.sections) {
+      post.sections.forEach((s) => {
+        if (s.answer && s.answer.trim()) {
+          totalQuestionsAnswered += 1;
+        }
+      });
+    }
+  });
+
+  // Calculate current streak
+  let streakDays = 0;
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  const checkDate = new Date(today);
+  // Check if posted today, or start from yesterday
+  const postedToday = Boolean(activityDates[todayStr]);
+  if (!postedToday) {
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  while (true) {
+    const dStr = checkDate.toISOString().split('T')[0];
+    if (activityDates[dStr]) {
+      streakDays += 1;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return {
+    streakDays,
+    totalStudyMinutes,
+    totalQuestionsAnswered,
+    totalPosts: posts.length,
+    activityDates,
+  };
 }
 
 export async function savePostToCollection(
