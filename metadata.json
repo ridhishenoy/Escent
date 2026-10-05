@@ -1,0 +1,8 @@
+{
+  "name": "Escent",
+  "description": "A social learning journal to document what you study, solve, question, and discover.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

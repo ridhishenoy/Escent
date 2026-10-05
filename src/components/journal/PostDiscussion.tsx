@@ -117,7 +117,7 @@ export default function PostDiscussion({ post, ownerUsername, viewerUsername, on
 
   function toggleMode(next: DiscussionMode) {
     setError('')
-    if (current => current === next) {
+    if (mode === next) {
       setMode('idle')
       setReplyingTo(null)
     } else {
