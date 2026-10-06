@@ -1,6 +1,6 @@
-# Escent
+# Rivise
 
-Escent is a social learning journal — a place to document what you study, solve, question, and discover. Think of it as a personal learning space with a social layer: you organize posts by subject, publish findings in a structured Q&A format, and follow other learners to see their work in your feed.
+Rivise is a social learning journal — a place to document what you study, solve, question, and discover. Think of it as a personal learning space with a social layer: you organize posts by subject, publish findings in a structured Q&A format, and follow other learners to see their work in your feed.
 
 ## What you can do
 

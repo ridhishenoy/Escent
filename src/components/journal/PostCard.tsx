@@ -117,10 +117,10 @@ export default function PostCard({
   async function handleShare() {
     const postUrl = `${window.location.origin}/${ownerUsername || ''}#post-${post.id}`
     const shareData = {
-      title: post.title || 'Learning Journal Post on Rika',
+      title: post.title || 'Learning Journal Post on Rivise',
       text: post.title
-        ? `Read "${post.title}" on Rika by @${ownerUsername || 'learner'}`
-        : `Check out this learning journal entry on Rika!`,
+        ? `Read "${post.title}" on Rivise by @${ownerUsername || 'learner'}`
+        : `Check out this learning journal entry on Rivise!`,
       url: postUrl,
     }
 

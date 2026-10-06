@@ -17,7 +17,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-3">
         <div className="flex items-center min-w-0">
           <Link to={username ? '/feed' : '/'} className="text-xl sm:text-2xl font-bold text-[var(--color-primary)]">
-            Rika
+            Rivise
           </Link>
         </div>
         <nav className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -41,20 +41,12 @@ export default function Navbar() {
               </button>
             </>
           ) : (
-            <>
-              <Link
-                to="/auth"
-                className="text-sm font-medium px-2 py-1.5 hover:text-[var(--color-primary)] transition-colors touch-manipulation"
-              >
-                Login
-              </Link>
-              <Link
-                to="/auth?signup=true"
-                className="text-sm font-medium bg-[var(--color-primary)] text-white px-3 sm:px-4 py-2 rounded-md hover:opacity-90 transition-opacity touch-manipulation"
-              >
-                Sign Up
-              </Link>
-            </>
+            <Link
+              to="/auth"
+              className="text-sm font-medium bg-[var(--color-primary)] text-white px-3.5 sm:px-4 py-2 rounded-lg hover:opacity-90 transition-opacity touch-manipulation shadow-xs"
+            >
+              Sign In
+            </Link>
           )}
         </nav>
       </div>

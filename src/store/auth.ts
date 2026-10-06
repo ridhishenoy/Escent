@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getProfile } from '../lib/journal'
-import { auth } from '../lib/firebase'
-import { signOut } from 'firebase/auth'
+import { auth, db } from '../lib/firebase'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
 
 type AuthState = {
   username: string | null
@@ -41,6 +42,28 @@ export const useAuth = create<AuthState>()(
         set({ username: null, avatarUrl: null, displayName: null })
       },
     }),
-    { name: 'rika.session' },
+    { name: 'rivise.session' },
   ),
 )
+
+// Synchronize Firebase Auth state on page load
+if (typeof window !== 'undefined') {
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const current = useAuth.getState().username
+      if (!current) {
+        try {
+          const snap = await getDoc(doc(db, 'profiles', user.uid))
+          if (snap.exists()) {
+            const data = snap.data()
+            if (data.username) {
+              await useAuth.getState().signIn(data.username)
+            }
+          }
+        } catch (e) {
+          console.warn('Could not auto-restore profile from Firebase user', e)
+        }
+      }
+    }
+  })
+}

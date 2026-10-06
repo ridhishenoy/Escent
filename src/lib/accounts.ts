@@ -122,9 +122,28 @@ export async function signInWithGoogle(): Promise<{ username: string; isNewUser:
 
     return { username: candidate, isNewUser: true };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('auth/popup-closed-by-user')) {
-      throw new AuthError('Sign-in cancelled.');
+    const msg = error instanceof Error ? error.message : String(error);
+    const code = (error && typeof error === 'object' && 'code' in error) ? String((error as { code: unknown }).code) : '';
+
+    if (code === 'auth/popup-closed-by-user' || msg.includes('auth/popup-closed-by-user')) {
+      throw new AuthError('Sign-in cancelled: The Google popup was closed before completing sign-in.');
     }
+    if (code === 'auth/popup-blocked' || msg.includes('auth/popup-blocked')) {
+      throw new AuthError('The sign-in popup was blocked by your browser. Please allow popups for this site or open the app in a new window tab.');
+    }
+    if (code === 'auth/unauthorized-domain' || msg.includes('auth/unauthorized-domain')) {
+      throw new AuthError(`Domain not authorized: "${typeof window !== 'undefined' ? window.location.hostname : 'this domain'}" must be added to Authorized Domains in your Firebase Console (Authentication > Settings > Authorized Domains).`);
+    }
+    if (code === 'auth/operation-not-allowed' || msg.includes('auth/operation-not-allowed')) {
+      throw new AuthError('Google Sign-In is not enabled for this project. Please enable Google provider in the Firebase Console (Authentication > Sign-in method).');
+    }
+    if (code === 'auth/cancelled-popup-request' || msg.includes('auth/cancelled-popup-request')) {
+      throw new AuthError('Another sign-in window was already open. Please try again.');
+    }
+    if (code.startsWith('auth/') || msg.includes('auth/')) {
+      throw new AuthError(`Authentication error: ${msg}`);
+    }
+
     handleFirestoreError(error, OperationType.WRITE, 'profiles');
   }
 }

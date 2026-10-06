@@ -15,7 +15,7 @@ export default function Landing() {
 
       <div className="flex w-full max-w-xs sm:max-w-none sm:w-auto">
         <Link
-          to="/auth?signup=true"
+          to="/auth"
           className="w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-[var(--color-primary)] text-white text-base sm:text-lg font-semibold rounded-lg hover:opacity-90 transition-all shadow-lg sm:hover:shadow-xl sm:hover:-translate-y-1 touch-manipulation text-center"
         >
           Start your journal

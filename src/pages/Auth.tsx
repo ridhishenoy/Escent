@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { AuthError, signInWithGoogle } from '../lib/accounts'
 import { useAuth } from '../store/auth'
 
 export default function Auth() {
-  const [searchParams] = useSearchParams()
-  const isSignup = searchParams.get('signup') === 'true'
   const navigate = useNavigate()
   const currentUsername = useAuth((state) => state.username)
   const signIn = useAuth((state) => state.signIn)
@@ -27,7 +25,21 @@ export default function Auth() {
       await signIn(username)
       navigate('/feed')
     } catch (caught) {
+      console.error('Sign-in error:', caught)
       if (caught instanceof AuthError) {
+        setError(caught.message)
+        return
+      }
+      if (caught instanceof Error && caught.message) {
+        try {
+          const parsed = JSON.parse(caught.message)
+          if (parsed && typeof parsed === 'object' && parsed.error) {
+            setError(`Database error: ${parsed.error}`)
+            return
+          }
+        } catch {
+          // not JSON formatted
+        }
         setError(caught.message)
         return
       }
@@ -37,16 +49,14 @@ export default function Auth() {
     }
   }
 
-  const title = isSignup ? 'Create your space' : 'Welcome back'
-
   return (
     <div className="max-w-md mx-auto mt-4 sm:mt-12 lg:mt-20 p-6 sm:p-8 bg-[var(--color-card)] rounded-2xl shadow-sm border border-[var(--color-border)] text-center">
       <div className="inline-flex items-center justify-center size-12 rounded-full bg-[var(--color-primary-soft)]/30 text-[var(--color-primary)] font-bold text-xl mb-4">
         R
       </div>
-      <h2 className="text-2xl sm:text-3xl font-extrabold mb-2">{title}</h2>
+      <h2 className="text-2xl sm:text-3xl font-extrabold mb-2">Sign in to Rivise</h2>
       <p className="text-sm sm:text-base text-[var(--color-muted)] mb-8">
-        Sign in with your Google account to access your personal learning journal, document what you discover, and connect with other learners.
+        Continue with your Google account to access your personal learning journal, document what you discover, and connect with other learners.
       </p>
 
       {error ? (
@@ -79,11 +89,11 @@ export default function Auth() {
             d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
           />
         </svg>
-        <span>{isSubmitting ? 'Signing in…' : 'Continue with Google'}</span>
+        <span>{isSubmitting ? 'Signing in…' : 'Sign in with Google'}</span>
       </button>
 
       <p className="mt-8 text-xs text-[var(--color-muted)] leading-relaxed">
-        By continuing, your profile will be created with your display name and avatar, which you can customize at any time.
+        New to Rivise? A profile will automatically be created for your account when you sign in.
       </p>
     </div>
   )
